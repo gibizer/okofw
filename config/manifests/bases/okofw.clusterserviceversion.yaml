@@ -1,0 +1,49 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    operatorframework.io/suggested-namespace: openstack
+    operators.operatorframework.io/operator-type: non-standalone
+  name: okofw.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: ServiceWithDB is the Schema for the servicewithdbs API
+      displayName: Service With DB
+      kind: ServiceWithDB
+      name: servicewithdbs.okofw-example.openstack.org
+      version: v1beta1
+    - description: Simple is the Schema for the simples API
+      displayName: Simple
+      kind: Simple
+      name: simples.okofw-example.openstack.org
+      version: v1beta1
+  description: OKOFW Operator
+  displayName: OKOFW Operator
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - OpenStack
+  links:
+  - name: OKOFW Operator
+    url: https://github.com/gibizer/okofw
+  maturity: beta
+  provider:
+    name: Red Hat Inc.
+    url: https://redhat.com/
+  version: 0.0.0

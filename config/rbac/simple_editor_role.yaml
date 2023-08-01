@@ -1,0 +1,24 @@
+# permissions for end users to edit simples.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: simple-editor-role
+rules:
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - simples
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - simples/status
+  verbs:
+  - get

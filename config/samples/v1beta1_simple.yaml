@@ -1,0 +1,7 @@
+apiVersion: okofw-example.openstack.org/v1beta1
+kind: Simple
+metadata:
+  name: simple-sample
+spec:
+  divident: 10
+  divisor: 5

@@ -1,0 +1,59 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - servicewithdbs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - servicewithdbs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - servicewithdbs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - simples
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - simples/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - simples/status
+  verbs:
+  - get
+  - patch
+  - update

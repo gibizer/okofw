@@ -1,0 +1,28 @@
+domain: openstack.org
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: okofw
+repo: github.com/gibizer/okofw
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openstack.org
+  group: okofw-example
+  kind: Simple
+  path: github.com/gibizer/okofw/api/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openstack.org
+  group: okofw-example
+  kind: ServiceWithDB
+  path: github.com/gibizer/okofw/api/v1beta1
+  version: v1beta1
+version: "3"

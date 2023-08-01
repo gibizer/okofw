@@ -23,7 +23,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
+	testv1beta1 "github.com/gibizer/okofw/api/v1beta1"
 )
 
 // ServiceWithDBReconciler reconciles a ServiceWithDB object

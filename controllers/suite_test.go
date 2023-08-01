@@ -40,7 +40,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	testv1 "github.com/gibizer/test-operator/api/v1beta1"
+	testv1 "github.com/gibizer/okofw/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 

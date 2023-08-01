@@ -1,4 +1,4 @@
-module github.com/gibizer/test-operator
+module github.com/gibizer/okofw
 
 go 1.19
 

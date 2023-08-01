@@ -24,8 +24,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
-	"github.com/gibizer/test-operator/pkg/base"
+	testv1beta1 "github.com/gibizer/okofw/api/v1beta1"
+	"github.com/gibizer/okofw/pkg/base"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
 

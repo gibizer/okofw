@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	testv1 "github.com/gibizer/test-operator/api/v1beta1"
+	testv1 "github.com/gibizer/okofw/api/v1beta1"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

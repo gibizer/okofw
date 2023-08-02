@@ -19,11 +19,9 @@ type Req[T client.Object] struct {
 	Instance T
 }
 
-type StepFunc[T client.Object, R Req[T]] func(r *R) Result
-
-type Step[T client.Object, R Req[T]] struct {
-	Name string
-	Do   StepFunc[T, R]
+type Step[T client.Object, R Req[T]] interface {
+	GetName() string
+	Do(r *R) Result
 }
 
 type Handler func() (ctrl.Result, error)
@@ -42,12 +40,12 @@ func NewReqHandler[T client.Object](
 	// steps that run before any real reconciliation step and stop reconciling
 	// if they fail.
 	preSteps := []Step[T, Req[T]]{
-		{Name: "Read instance state", Do: readInstance[T]},
-		{Name: "Handle instance delete", Do: handleDeleted[T]},
+		ReadInstance[T, Req[T]]{},
+		HandleDeleted[T, Req[T]]{},
 	}
 	// steps to do always regardles of why we exit the reconciliation
 	finallySteps := []Step[T, Req[T]]{
-		{Name: "Persist instance state", Do: saveInstance[T]},
+		SaveInstance[T, Req[T]]{},
 	}
 
 	return func() (ctrl.Result, error) {
@@ -64,69 +62,45 @@ func (r *Req[T]) handle(preSteps []Step[T, Req[T]], steps []Step[T, Req[T]], pos
 	for _, step := range preSteps {
 		result = step.Do(r)
 		if result.err != nil {
-			r.Log.Error(result.err, fmt.Sprintf("PreStep: %s: failed. Return immediately", step.Name))
+			r.Log.Error(result.err, fmt.Sprintf("PreStep: %s: failed. Return immediately", step.GetName()))
 			// return, skip final steps
 			return result
 		}
 		if result.Requeue {
-			r.Log.Info(fmt.Sprintf("PreStep: %s: requested requeue. Return immediately", step.Name))
+			r.Log.Info(fmt.Sprintf("PreStep: %s: requested requeue. Return immediately", step.GetName()))
 			// return, skip final steps
 			return result
 		}
-		r.Log.Info(fmt.Sprintf("PreStep: %s: OK", step.Name))
+		r.Log.Info(fmt.Sprintf("PreStep: %s: OK", step.GetName()))
 	}
 
 	for _, step := range steps {
 		result = step.Do(r)
 		if result.err != nil {
-			r.Log.Error(result.err, fmt.Sprintf("Step: %s: failed.", step.Name))
+			r.Log.Error(result.err, fmt.Sprintf("Step: %s: failed.", step.GetName()))
 			// jump to final steps
 			break
 		}
 		if result.Requeue {
-			r.Log.Info(fmt.Sprintf("Step: %s: requested requeue.", step.Name))
+			r.Log.Info(fmt.Sprintf("Step: %s: requested requeue.", step.GetName()))
 			// jump to final steps
 			break
 		}
-		r.Log.Info(fmt.Sprintf("Step: %s: OK", step.Name))
+		r.Log.Info(fmt.Sprintf("Step: %s: OK", step.GetName()))
 	}
 
 	for _, step := range postSteps {
 		result = step.Do(r)
 		if result.err != nil {
-			r.Log.Error(result.err, fmt.Sprintf("PostStep: %s: failed.", step.Name))
+			r.Log.Error(result.err, fmt.Sprintf("PostStep: %s: failed.", step.GetName()))
 			// run the rest of the post steps
 		}
 		if result.Requeue {
-			r.Log.Info(fmt.Sprintf("PostStep: %s: requested requeue. This should not happen. Ignored", step.Name))
+			r.Log.Info(fmt.Sprintf("PostStep: %s: requested requeue. This should not happen. Ignored", step.GetName()))
 			// run the rest of the post steps
 		}
-		r.Log.Info(fmt.Sprintf("PostStep: %s: OK", step.Name))
+		r.Log.Info(fmt.Sprintf("PostStep: %s: OK", step.GetName()))
 	}
 
 	return result
-}
-
-func readInstance[T client.Object](r *Req[T]) Result {
-	err := r.Client.Get(r.Ctx, r.Request.NamespacedName, r.Instance)
-	if err != nil {
-		r.Log.Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
-		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
-	}
-	return r.OK()
-}
-
-func handleDeleted[T client.Object](r *Req[T]) Result {
-	if !r.Instance.GetDeletionTimestamp().IsZero() {
-		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
-	}
-	return r.OK()
-}
-
-func saveInstance[T client.Object](r *Req[T]) Result {
-	err := r.Client.Status().Update(r.Ctx, r.Instance)
-	if err != nil {
-		return r.Error(err)
-	}
-	return r.OK()
 }

@@ -40,7 +40,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	testv1 "github.com/gibizer/okofw/api/v1beta1"
+	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -84,7 +84,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = testv1.AddToScheme(scheme.Scheme)
+	err = v1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -150,9 +150,9 @@ func DeleteNamespace(name string) {
 	Expect(k8sClient.Delete(ctx, ns)).Should(Succeed())
 }
 
-func CreateSimple(namespace string, spec testv1.SimpleSpec) types.NamespacedName {
+func CreateSimple(namespace string, spec v1beta1.SimpleSpec) types.NamespacedName {
 	name := uuid.New().String()
-	instance := &testv1.Simple{
+	instance := &v1beta1.Simple{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "okofw-example.openstack.org/v1beta1",
 			Kind:       "Simple",
@@ -173,7 +173,7 @@ func CreateSimple(namespace string, spec testv1.SimpleSpec) types.NamespacedName
 func DeleteSimple(name types.NamespacedName) {
 	logger.Info("Deleting")
 	Eventually(func(g Gomega) {
-		instance := &testv1.Simple{}
+		instance := &v1beta1.Simple{}
 		err := k8sClient.Get(ctx, name, instance)
 		// if it is already gone that is OK
 		if k8s_errors.IsNotFound(err) {
@@ -189,8 +189,8 @@ func DeleteSimple(name types.NamespacedName) {
 	logger.Info("Deleted")
 }
 
-func GetSimple(name types.NamespacedName) *testv1.Simple {
-	instance := &testv1.Simple{}
+func GetSimple(name types.NamespacedName) *v1beta1.Simple {
+	instance := &v1beta1.Simple{}
 	Eventually(func(g Gomega) {
 		logger.Info("Try get", "simple", name)
 		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())

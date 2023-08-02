@@ -24,7 +24,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	testv1beta1 "github.com/gibizer/okofw/api/v1beta1"
+	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
 	"github.com/gibizer/okofw/pkg/reconcile"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
@@ -43,11 +43,11 @@ type SimpleReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	return reconcile.NewReqHandler(
-		ctx, req, r.Client, &testv1beta1.Simple{},
-		[]reconcile.Step[*testv1beta1.Simple, reconcile.Req[*testv1beta1.Simple]]{
-			{Name: "Init status", Do: initStatus},
-			{Name: "Ensure non-zero divisor", Do: ensureNonZeroDivisor},
-			{Name: "Divide", Do: divide},
+		ctx, req, r.Client, &v1beta1.Simple{},
+		[]reconcile.Step[*v1beta1.Simple, reconcile.Req[*v1beta1.Simple]]{
+			InitStatus{},
+			EnsureNonZeroDivisor{},
+			Divide{},
 		},
 	)()
 }
@@ -55,16 +55,27 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 // SetupWithManager sets up the controller with the Manager.
 func (r *SimpleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&testv1beta1.Simple{}).
+		For(&v1beta1.Simple{}).
 		Complete(r)
 }
 
-func initStatus(r *reconcile.Req[*testv1beta1.Simple]) reconcile.Result {
+type InitStatus struct{}
+
+func (s InitStatus) GetName() string {
+	return "Init status"
+}
+
+func (s InitStatus) Do(r *reconcile.Req[*v1beta1.Simple]) reconcile.Result {
 	r.Instance.Status.Conditions.Init(&condition.Conditions{})
 	return r.OK()
 }
 
-func ensureNonZeroDivisor(r *reconcile.Req[*testv1beta1.Simple]) reconcile.Result {
+type EnsureNonZeroDivisor struct{}
+
+func (s EnsureNonZeroDivisor) GetName() string {
+	return "Ensure non-zereo divisor"
+}
+func (s EnsureNonZeroDivisor) Do(r *reconcile.Req[*v1beta1.Simple]) reconcile.Result {
 	if r.Instance.Spec.Divisor == 0 {
 		r.Instance.Status.Conditions.MarkFalse(condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, "division by zero")
 		return r.Error(fmt.Errorf("division by zero"))
@@ -72,7 +83,12 @@ func ensureNonZeroDivisor(r *reconcile.Req[*testv1beta1.Simple]) reconcile.Resul
 	return r.OK()
 }
 
-func divide(r *reconcile.Req[*testv1beta1.Simple]) reconcile.Result {
+type Divide struct{}
+
+func (s Divide) GetName() string {
+	return "Divide"
+}
+func (s Divide) Do(r *reconcile.Req[*v1beta1.Simple]) reconcile.Result {
 	quotient := r.Instance.Spec.Divident / r.Instance.Spec.Divisor
 	remainder := r.Instance.Spec.Divident % r.Instance.Spec.Divisor
 	r.Instance.Status.Quotient = &quotient

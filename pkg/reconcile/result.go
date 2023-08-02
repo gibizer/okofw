@@ -1,4 +1,4 @@
-package base
+package reconcile
 
 import (
 	"fmt"
@@ -26,15 +26,15 @@ func (r Result) Unwrap() (ctrl.Result, error) {
 	return r.Result, r.err
 }
 
-func (r *ReconcileReq[T]) OK() Result {
+func (r *Req[T]) OK() Result {
 	return Result{Result: ctrl.Result{}, err: nil}
 }
 
-func (r *ReconcileReq[T]) Error(err error) Result {
+func (r *Req[T]) Error(err error) Result {
 	return Result{Result: ctrl.Result{}, err: err}
 }
 
-func (r *ReconcileReq[T]) Requeue(after *time.Duration) Result {
+func (r *Req[T]) Requeue(after *time.Duration) Result {
 	if after != nil {
 		return Result{Result: ctrl.Result{RequeueAfter: *after}, err: nil}
 	}

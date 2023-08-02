@@ -1,4 +1,4 @@
-package base
+package reconcile
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// ReconcileReq represents a single Reconcile request
-type ReconcileReq[T client.Object] struct {
+// Req represents a single Reconcile request
+type Req[T client.Object] struct {
 	Ctx      context.Context
 	Log      logr.Logger
 	Request  ctrl.Request
@@ -19,20 +19,20 @@ type ReconcileReq[T client.Object] struct {
 	Instance T
 }
 
-type StepFunc[T client.Object, R ReconcileReq[T]] func(r *R) Result
+type StepFunc[T client.Object, R Req[T]] func(r *R) Result
 
-type Step[T client.Object, R ReconcileReq[T]] struct {
+type Step[T client.Object, R Req[T]] struct {
 	Name string
 	Do   StepFunc[T, R]
 }
 
 type Handler func() (ctrl.Result, error)
 
-func NewReconcileReqHandler[T client.Object](
+func NewReqHandler[T client.Object](
 	ctx context.Context, req ctrl.Request, client client.Client, prototype T,
-	steps []Step[T, ReconcileReq[T]],
+	steps []Step[T, Req[T]],
 ) Handler {
-	r := &ReconcileReq[T]{
+	r := &Req[T]{
 		Ctx:      ctx,
 		Log:      log.FromContext(ctx),
 		Request:  req,
@@ -41,12 +41,12 @@ func NewReconcileReqHandler[T client.Object](
 	}
 	// steps that run before any real reconciliation step and stop reconciling
 	// if they fail.
-	preSteps := []Step[T, ReconcileReq[T]]{
+	preSteps := []Step[T, Req[T]]{
 		{Name: "Read instance state", Do: readInstance[T]},
 		{Name: "Handle instance delete", Do: handleDeleted[T]},
 	}
 	// steps to do always regardles of why we exit the reconciliation
-	finallySteps := []Step[T, ReconcileReq[T]]{
+	finallySteps := []Step[T, Req[T]]{
 		{Name: "Persist instance state", Do: saveInstance[T]},
 	}
 
@@ -58,7 +58,7 @@ func NewReconcileReqHandler[T client.Object](
 	}
 }
 
-func (r *ReconcileReq[T]) handle(preSteps []Step[T, ReconcileReq[T]], steps []Step[T, ReconcileReq[T]], postSteps []Step[T, ReconcileReq[T]]) Result {
+func (r *Req[T]) handle(preSteps []Step[T, Req[T]], steps []Step[T, Req[T]], postSteps []Step[T, Req[T]]) Result {
 	var result Result
 
 	for _, step := range preSteps {
@@ -107,7 +107,7 @@ func (r *ReconcileReq[T]) handle(preSteps []Step[T, ReconcileReq[T]], steps []St
 	return result
 }
 
-func readInstance[T client.Object](r *ReconcileReq[T]) Result {
+func readInstance[T client.Object](r *Req[T]) Result {
 	err := r.Client.Get(r.Ctx, r.Request.NamespacedName, r.Instance)
 	if err != nil {
 		r.Log.Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
@@ -116,14 +116,14 @@ func readInstance[T client.Object](r *ReconcileReq[T]) Result {
 	return r.OK()
 }
 
-func handleDeleted[T client.Object](r *ReconcileReq[T]) Result {
+func handleDeleted[T client.Object](r *Req[T]) Result {
 	if !r.Instance.GetDeletionTimestamp().IsZero() {
 		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
 	}
 	return r.OK()
 }
 
-func saveInstance[T client.Object](r *ReconcileReq[T]) Result {
+func saveInstance[T client.Object](r *Req[T]) Result {
 	err := r.Client.Status().Update(r.Ctx, r.Instance)
 	if err != nil {
 		return r.Error(err)

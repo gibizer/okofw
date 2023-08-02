@@ -12,6 +12,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: RWExternal is the Schema for the rwexternals API
+      displayName: RWExternal
+      kind: RWExternal
+      name: rwexternals.okofw-example.openstack.org
+      version: v1beta1
     - description: ServiceWithDB is the Schema for the servicewithdbs API
       displayName: Service With DB
       kind: ServiceWithDB

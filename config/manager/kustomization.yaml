@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/gibi/okofw-operator
-  newTag: v0.0.2
+  newTag: v0.0.3

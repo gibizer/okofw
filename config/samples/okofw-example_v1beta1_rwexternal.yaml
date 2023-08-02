@@ -1,0 +1,6 @@
+apiVersion: okofw-example.openstack.org/v1beta1
+kind: RWExternal
+metadata:
+  name: rwexternal-sample
+spec:
+  # TODO(user): Add fields here

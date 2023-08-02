@@ -6,6 +6,14 @@ metadata:
       [
         {
           "apiVersion": "okofw-example.openstack.org/v1beta1",
+          "kind": "RWExternal",
+          "metadata": {
+            "name": "rwexternal-sample"
+          },
+          "spec": null
+        },
+        {
+          "apiVersion": "okofw-example.openstack.org/v1beta1",
           "kind": "ServiceWithDB",
           "metadata": {
             "name": "servicewithdb-sample"
@@ -29,12 +37,17 @@ metadata:
     operators.operatorframework.io/builder: operator-sdk-v1.23.0
     operators.operatorframework.io/operator-type: non-standalone
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: okofw.v0.0.2
+  name: okofw.v0.0.3
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: RWExternal is the Schema for the rwexternals API
+      displayName: RWExternal
+      kind: RWExternal
+      name: rwexternals.okofw-example.openstack.org
+      version: v1beta1
     - description: ServiceWithDB is the Schema for the servicewithdbs API
       displayName: Service With DB
       kind: ServiceWithDB
@@ -51,6 +64,32 @@ spec:
     spec:
       clusterPermissions:
       - rules:
+        - apiGroups:
+          - okofw-example.openstack.org
+          resources:
+          - rwexternals
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - okofw-example.openstack.org
+          resources:
+          - rwexternals/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - okofw-example.openstack.org
+          resources:
+          - rwexternals/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - okofw-example.openstack.org
           resources:
@@ -163,7 +202,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/gibi/okofw-operator:v0.0.2
+                image: quay.io/gibi/okofw-operator:v0.0.3
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -246,4 +285,4 @@ spec:
   provider:
     name: Red Hat Inc.
     url: https://redhat.com/
-  version: 0.0.2
+  version: 0.0.3

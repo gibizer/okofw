@@ -1,0 +1,24 @@
+# permissions for end users to edit rwexternals.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rwexternal-editor-role
+rules:
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - rwexternals
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - okofw-example.openstack.org
+  resources:
+  - rwexternals/status
+  verbs:
+  - get

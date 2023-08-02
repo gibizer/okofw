@@ -25,4 +25,13 @@ resources:
   kind: ServiceWithDB
   path: github.com/gibizer/okofw/api/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openstack.org
+  group: okofw-example
+  kind: RWExternal
+  path: github.com/gibizer/okofw/api/v1beta1
+  version: v1beta1
 version: "3"

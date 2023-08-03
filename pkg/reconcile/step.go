@@ -6,7 +6,7 @@ import (
 
 // Step defines a single logical step during the reconciliation of the T CRD
 // type with the R reconcile request type
-type Step[T client.Object, R any] interface {
+type Step[T client.Object, R Req[T]] interface {
 	GetName() string
 	Do(r R) Result
 }

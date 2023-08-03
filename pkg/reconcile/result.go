@@ -7,6 +7,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// Result defines the outcome of a given reconciliation call
 type Result struct {
 	ctrl.Result
 	err error

@@ -41,6 +41,12 @@ type RWExternalReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+type RWExternalRReq struct {
+	reconcile.Req[*v1beta1.RWExternal]
+	divident *int
+	divisor  *int
+}
+
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/finalizers,verbs=update
@@ -55,7 +61,7 @@ type RWExternalReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	req2 := &RWExternalReconcileReq{
+	rReq := &RWExternalRReq{
 		Req: &reconcile.ReqBase[*v1beta1.RWExternal]{
 			Ctx:      ctx,
 			Request:  req,
@@ -63,14 +69,14 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Client:   r.Client,
 			Instance: &v1beta1.RWExternal{},
 		},
+		divident: nil,
+		divisor:  nil,
 	}
-	steps := []reconcile.Step[*v1beta1.RWExternal, *RWExternalReconcileReq]{
+	steps := []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
 		InitRWExternalStatus{},
 		EnsureInput{},
 	}
-	return reconcile.NewReqHandler[*v1beta1.RWExternal, *RWExternalReconcileReq](
-		req2, steps,
-	)()
+	return reconcile.NewReqHandler(rReq, steps)()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -80,19 +86,13 @@ func (r *RWExternalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-type RWExternalReconcileReq struct {
-	reconcile.Req[*v1beta1.RWExternal]
-	divident *int
-	divisor  *int
-}
-
 type InitRWExternalStatus struct{}
 
 func (s InitRWExternalStatus) GetName() string {
 	return "Init status"
 }
 
-func (s InitRWExternalStatus) Do(r *RWExternalReconcileReq) reconcile.Result {
+func (s InitRWExternalStatus) Do(r *RWExternalRReq) reconcile.Result {
 	// TODO(gibi): generalize this to collect condition types from Steps to
 	// initialize
 	cl := condition.CreateList(
@@ -112,7 +112,7 @@ func (s EnsureInput) GetName() string {
 	return "Ensure input is available"
 }
 
-func (s EnsureInput) Do(r *RWExternalReconcileReq) reconcile.Result {
+func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 	secret := &corev1.Secret{}
 	secretName := types.NamespacedName{
 		Namespace: r.GetInstance().Namespace,

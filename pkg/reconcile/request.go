@@ -10,6 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Req holds a single reconcile request
+// T is the CRD type the reconcile request running on
 type Req[T client.Object] interface {
 	GetCtx() context.Context
 	GetLog() logr.Logger
@@ -22,7 +24,7 @@ type Req[T client.Object] interface {
 	Requeue(after *time.Duration) Result
 }
 
-// Req represents a single Reconcile request
+// ReqBase provides the minimal implementation of a reconcile request
 type ReqBase[T client.Object] struct {
 	Ctx      context.Context
 	Log      logr.Logger
@@ -51,13 +53,10 @@ func (r *ReqBase[T]) GetInstance() T {
 	return r.Instance
 }
 
-type Step[T client.Object, R any] interface {
-	GetName() string
-	Do(r R) Result
-}
-
 type Handler func() (ctrl.Result, error)
 
+// NewReqHandler builds up a function that can handle the current reconcile
+// request for CRD type T with reconcile request type R
 func NewReqHandler[T client.Object, R Req[T]](
 	r R, steps []Step[T, R],
 ) Handler {
@@ -68,19 +67,30 @@ func NewReqHandler[T client.Object, R Req[T]](
 		HandleDeleted[T, R]{},
 	}
 	// steps to do always regardles of why we exit the reconciliation
-	finallySteps := []Step[T, R]{
+	postSteps := []Step[T, R]{
 		SaveInstance[T, R]{},
 	}
 
 	return func() (ctrl.Result, error) {
 		r.GetLog().Info("Reconciling")
-		result := handle[T, R](r, preSteps, steps, finallySteps)
+		result := handleReq[T, R](r, preSteps, steps, postSteps)
 		r.GetLog().Info("Reconciled", "result", result)
 		return result.Unwrap()
 	}
 }
 
-func handle[T client.Object, R Req[T]](r R, preSteps []Step[T, R], steps []Step[T, R], postSteps []Step[T, R]) Result {
+// handleReq implements a single Reconcile run by going throught each
+// reconciliation steps provided.
+//   - preSteps are special steps that if fail or requeue then postSteps are
+//     skipped
+//   - postSteps are always run even if a step fails or requeues. If a postStep
+//     fails all the remaining post step still runs.
+func handleReq[T client.Object, R Req[T]](
+	r R,
+	preSteps []Step[T, R],
+	steps []Step[T, R],
+	postSteps []Step[T, R],
+) Result {
 	var result Result
 
 	for _, step := range preSteps {

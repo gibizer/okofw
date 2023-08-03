@@ -36,6 +36,10 @@ type SimpleReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+type SimpleRReq struct {
+	reconcile.ReqBase[*v1beta1.Simple]
+}
+
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=simples,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=simples/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=simples/finalizers,verbs=update
@@ -44,22 +48,22 @@ type SimpleReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 
-	req2 := &reconcile.ReqBase[*v1beta1.Simple]{
-		Ctx:      ctx,
-		Request:  req,
-		Log:      log.FromContext(ctx),
-		Client:   r.Client,
-		Instance: &v1beta1.Simple{},
+	rReq := &SimpleRReq{
+		ReqBase: reconcile.ReqBase[*v1beta1.Simple]{
+			Ctx:      ctx,
+			Request:  req,
+			Log:      log.FromContext(ctx),
+			Client:   r.Client,
+			Instance: &v1beta1.Simple{},
+		},
+	}
+	steps := []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{
+		InitStatus{},
+		EnsureNonZeroDivisor{},
+		Divide{},
 	}
 
-	return reconcile.NewReqHandler[*v1beta1.Simple, *reconcile.ReqBase[*v1beta1.Simple]](
-		req2,
-		[]reconcile.Step[*v1beta1.Simple, *reconcile.ReqBase[*v1beta1.Simple]]{
-			InitStatus{},
-			EnsureNonZeroDivisor{},
-			Divide{},
-		},
-	)()
+	return reconcile.NewReqHandler(rReq, steps)()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -75,7 +79,7 @@ func (s InitStatus) GetName() string {
 	return "Init status"
 }
 
-func (s InitStatus) Do(r *reconcile.ReqBase[*v1beta1.Simple]) reconcile.Result {
+func (s InitStatus) Do(r *SimpleRReq) reconcile.Result {
 	r.GetInstance().Status.Conditions.Init(&condition.Conditions{})
 	return r.OK()
 }
@@ -85,7 +89,7 @@ type EnsureNonZeroDivisor struct{}
 func (s EnsureNonZeroDivisor) GetName() string {
 	return "Ensure non-zereo divisor"
 }
-func (s EnsureNonZeroDivisor) Do(r *reconcile.ReqBase[*v1beta1.Simple]) reconcile.Result {
+func (s EnsureNonZeroDivisor) Do(r *SimpleRReq) reconcile.Result {
 	if r.GetInstance().Spec.Divisor == 0 {
 		r.GetInstance().Status.Conditions.MarkFalse(condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, "division by zero")
 		return r.Error(fmt.Errorf("division by zero"))
@@ -98,7 +102,7 @@ type Divide struct{}
 func (s Divide) GetName() string {
 	return "Divide"
 }
-func (s Divide) Do(r *reconcile.ReqBase[*v1beta1.Simple]) reconcile.Result {
+func (s Divide) Do(r *SimpleRReq) reconcile.Result {
 	instance := r.GetInstance()
 	quotient := instance.Spec.Divident / instance.Spec.Divisor
 	remainder := instance.Spec.Divident % instance.Spec.Divisor

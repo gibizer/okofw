@@ -110,13 +110,17 @@ func handleReq[T client.Object, R Req[T]](
 	}
 
 	for _, step := range postSteps {
-		result = step.Do(r)
-		if result.err != nil {
+		// We don't want to override the steps result unless the post step
+		// result is signalling a negative result
+		postResult := step.Do(r)
+		if postResult.err != nil {
 			r.GetLog().Error(result.err, fmt.Sprintf("PostStep: %s: failed.", step.GetName()))
+			result = postResult
 			// run the rest of the post steps
 		}
-		if result.Requeue {
+		if postResult.Requeue {
 			r.GetLog().Info(fmt.Sprintf("PostStep: %s: requested requeue. This should not happen. Ignored", step.GetName()))
+			result = postResult
 			// run the rest of the post steps
 		}
 		r.GetLog().Info(fmt.Sprintf("PostStep: %s: OK", step.GetName()))

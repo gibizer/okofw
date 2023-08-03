@@ -245,4 +245,3 @@ $(OPERATOR_SDK): $(LOCALBIN)
 operator-lint: $(LOCALBIN) ## Runs operator-lint
 	GOBIN=$(LOCALBIN) go install github.com/gibizer/operator-lint@v0.3.0
 	go vet -vettool=$(LOCALBIN)/operator-lint ./...
-

@@ -60,12 +60,6 @@ type Handler func() (ctrl.Result, error)
 func NewReqHandler[T client.Object, R Req[T]](
 	r R, steps []Step[T, R],
 ) Handler {
-	// steps that run before any real reconciliation step and stop reconciling
-	// if they fail.
-	preSteps := []Step[T, R]{
-		ReadInstance[T, R]{},
-		HandleDeleted[T, R]{},
-	}
 	// steps to do always regardles of why we exit the reconciliation
 	postSteps := []Step[T, R]{
 		SaveInstance[T, R]{},
@@ -73,7 +67,7 @@ func NewReqHandler[T client.Object, R Req[T]](
 
 	return func() (ctrl.Result, error) {
 		r.GetLog().Info("Reconciling")
-		result := handleReq[T, R](r, preSteps, steps, postSteps)
+		result := handleReq[T, R](r, steps, postSteps)
 		r.GetLog().Info("Reconciled", "result", result)
 		return result.Unwrap()
 	}
@@ -81,46 +75,38 @@ func NewReqHandler[T client.Object, R Req[T]](
 
 // handleReq implements a single Reconcile run by going throught each
 // reconciliation steps provided.
-//   - preSteps are special steps that if fail or requeue then postSteps are
-//     skipped
-//   - postSteps are always run even if a step fails or requeues. If a postStep
-//     fails all the remaining post step still runs.
 func handleReq[T client.Object, R Req[T]](
 	r R,
-	preSteps []Step[T, R],
 	steps []Step[T, R],
 	postSteps []Step[T, R],
 ) Result {
 	var result Result
 
-	for _, step := range preSteps {
-		result = step.Do(r)
-		if result.err != nil {
-			r.GetLog().Error(result.err, fmt.Sprintf("PreStep: %s: failed. Return immediately", step.GetName()))
-			// return, skip final steps
-			return result
-		}
-		if result.Requeue {
-			r.GetLog().Info(fmt.Sprintf("PreStep: %s: requested requeue. Return immediately", step.GetName()))
-			// return, skip final steps
-			return result
-		}
-		r.GetLog().Info(fmt.Sprintf("PreStep: %s: OK", step.GetName()))
+	err := r.GetClient().Get(r.GetCtx(), r.GetRequest().NamespacedName, r.GetInstance())
+	if err != nil {
+		r.GetLog().Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
+		return r.OK()
 	}
 
-	for _, step := range steps {
-		result = step.Do(r)
-		if result.err != nil {
-			r.GetLog().Error(result.err, fmt.Sprintf("Step: %s: failed.", step.GetName()))
-			// jump to final steps
-			break
+	if !r.GetInstance().GetDeletionTimestamp().IsZero() {
+		// TODO(gibi): create a delete path for cleanup
+		r.GetLog().Info("Deleting instance")
+	} else {
+		// Normal reconciliation
+		for _, step := range steps {
+			result = step.Do(r)
+			if result.err != nil {
+				r.GetLog().Error(result.err, fmt.Sprintf("Step: %s: failed.", step.GetName()))
+				// jump to final steps
+				break
+			}
+			if result.Requeue {
+				r.GetLog().Info(fmt.Sprintf("Step: %s: requested requeue.", step.GetName()))
+				// jump to final steps
+				break
+			}
+			r.GetLog().Info(fmt.Sprintf("Step: %s: OK", step.GetName()))
 		}
-		if result.Requeue {
-			r.GetLog().Info(fmt.Sprintf("Step: %s: requested requeue.", step.GetName()))
-			// jump to final steps
-			break
-		}
-		r.GetLog().Info(fmt.Sprintf("Step: %s: OK", step.GetName()))
 	}
 
 	for _, step := range postSteps {

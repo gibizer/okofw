@@ -47,7 +47,7 @@ var _ = Describe("RWExternal controller", func() {
 		CreateNamespace(namespace)
 		DeferCleanup(DeleteNamespace, namespace)
 	})
-	It("Reports if input is missing", func() {
+	It("Reports if input secret is missing", func() {
 		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "foo"})
 		DeferCleanup(DeleteInstance, rwName)
 
@@ -60,4 +60,71 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(inputCondition.Message).To(ContainSubstring("Missing input: secret/foo"))
 		}, timeout, interval).Should(Succeed())
 	})
+
+	It("Reports if input field is missing", func() {
+		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
+		th.CreateSecret(secretName, map[string][]byte{})
+		DeferCleanup(DeleteInstance, secretName)
+
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "input"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).NotTo(BeNil())
+			inputCondition := &condition.Condition{}
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), inputCondition))
+			g.Expect(inputCondition.Status).To(Equal(corev1.ConditionFalse))
+			g.Expect(inputCondition.Message).To(
+				ContainSubstring(
+					"Input data error occurred field 'divident' not found " +
+						"in secret/input"))
+		}, timeout, interval).Should(Succeed())
+	})
+
+	It("Reports if input field is wrongly formatted", func() {
+		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
+		th.CreateSecret(secretName, map[string][]byte{
+			"divident": []byte("10"),
+			"divisor":  []byte("not-an-int"),
+		})
+		DeferCleanup(DeleteInstance, secretName)
+
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "input"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).NotTo(BeNil())
+			inputCondition := &condition.Condition{}
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), inputCondition))
+			g.Expect(inputCondition.Status).To(Equal(corev1.ConditionFalse))
+			g.Expect(inputCondition.Message).To(
+				ContainSubstring(
+					"Input data error occurred 'divisor' in secret/input " +
+						"cannot be converted to int: strconv.Atoi: parsing " +
+						"\"not-an-int\": invalid syntax"))
+		}, timeout, interval).Should(Succeed())
+	})
+
+	It("Stores the result in an output Secret", func() {
+		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
+		th.CreateSecret(secretName, map[string][]byte{
+			"divident": []byte("10"),
+			"divisor":  []byte("5"),
+		})
+		DeferCleanup(DeleteInstance, secretName)
+
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "input"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).NotTo(BeNil())
+			inputCondition := &condition.Condition{}
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), inputCondition))
+			g.Expect(inputCondition.Status).To(Equal(corev1.ConditionTrue))
+		}, timeout, interval).Should(Succeed())
+	})
+
 })

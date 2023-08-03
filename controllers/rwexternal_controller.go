@@ -19,8 +19,11 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,8 +46,8 @@ type RWExternalReconciler struct {
 
 type RWExternalRReq struct {
 	reconcile.Req[*v1beta1.RWExternal]
-	divident *int
-	divisor  *int
+	Divident *int
+	Divisor  *int
 }
 
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
@@ -69,8 +72,8 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Client:   r.Client,
 			Instance: &v1beta1.RWExternal{},
 		},
-		divident: nil,
-		divisor:  nil,
+		Divident: nil,
+		Divisor:  nil,
 	}
 	steps := []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
 		InitRWExternalStatus{},
@@ -145,7 +148,7 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 		"divisor",
 	}
 	for _, field := range expectedFields {
-		_, ok := secret.Data[field]
+		v, ok := secret.Data[field]
 		if !ok {
 			err := fmt.Errorf("field '%s' not found in secret/%s", field, secretName.Name)
 			r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
@@ -156,33 +159,22 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 				err.Error()))
 			return r.Error(err)
 		}
+		d, err := strconv.Atoi(string(v))
+		if err != nil {
+			err := fmt.Errorf("'%s' in secret/%s cannot be converted to int: %w", field, secretName.Name, err)
+			r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
+				condition.InputReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				condition.InputReadyErrorMessage,
+				err.Error()))
+			return r.Error(err)
+		}
+		f := reflect.ValueOf(r).Elem().FieldByName(cases.Title(language.English, cases.Compact).String(field))
+		f.Set(reflect.ValueOf(&d))
 	}
 
-	d, err := strconv.Atoi(string(secret.Data["divident"]))
-	if err != nil {
-		err := fmt.Errorf("divident in secret/%s cannot be converted to int: %w", secretName.Name, err)
-		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
-			condition.InputReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.InputReadyErrorMessage,
-			err.Error()))
-		return r.Error(err)
-	}
-	r.divident = &d
-
-	d, err = strconv.Atoi(string(secret.Data["divisor"]))
-	if err != nil {
-		err := fmt.Errorf("divisor in secret/%s cannot be converted to int: %w", secretName.Name, err)
-		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
-			condition.InputReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.InputReadyErrorMessage,
-			err.Error()))
-		return r.Error(err)
-	}
-	r.divisor = &d
+	r.GetInstance().Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 
 	// TODO(gibi): Ensure that watch is added for Secrets
 

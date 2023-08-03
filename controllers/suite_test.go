@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/openstack-k8s-operators/lib-common/modules/test/helpers"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +59,7 @@ var (
 	ctx       context.Context
 	cancel    context.CancelFunc
 	logger    logr.Logger
+	th        *helpers.TestHelper
 )
 
 func TestAPIs(t *testing.T) {
@@ -120,6 +122,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	logger = ctrl.Log.WithName("---Test---")
+
+	th = helpers.NewTestHelper(ctx, k8sClient, timeout, interval, logger)
 
 	go func() {
 		defer GinkgoRecover()

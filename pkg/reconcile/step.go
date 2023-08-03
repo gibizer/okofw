@@ -13,10 +13,10 @@ func (s ReadInstance[T, R]) GetName() string {
 	return "Read instance state"
 }
 
-func (s ReadInstance[T, R]) Do(r *Req[T]) Result {
-	err := r.Client.Get(r.Ctx, r.Request.NamespacedName, r.Instance)
+func (s ReadInstance[T, R]) Do(r R) Result {
+	err := r.GetClient().Get(r.GetCtx(), r.GetRequest().NamespacedName, r.GetInstance())
 	if err != nil {
-		r.Log.Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
+		r.GetLog().Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
 		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
 	}
 	return r.OK()
@@ -29,8 +29,8 @@ func (s HandleDeleted[T, R]) GetName() string {
 	return "Handle instance delete"
 }
 
-func (s HandleDeleted[T, R]) Do(r *Req[T]) Result {
-	if !r.Instance.GetDeletionTimestamp().IsZero() {
+func (s HandleDeleted[T, R]) Do(r R) Result {
+	if !r.GetInstance().GetDeletionTimestamp().IsZero() {
 		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
 	}
 	return r.OK()
@@ -43,8 +43,8 @@ func (s SaveInstance[T, R]) GetName() string {
 	return "Persist instance state"
 }
 
-func (s SaveInstance[T, R]) Do(r *Req[T]) Result {
-	err := r.Client.Status().Update(r.Ctx, r.Instance)
+func (s SaveInstance[T, R]) Do(r R) Result {
+	err := r.GetClient().Status().Update(r.GetCtx(), r.GetInstance())
 	if err != nil {
 		return r.Error(err)
 	}

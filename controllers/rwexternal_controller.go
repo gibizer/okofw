@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 
@@ -53,12 +55,21 @@ type RWExternalReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return reconcile.NewReqHandler(
-		ctx, req, r.Client, &v1beta1.RWExternal{},
-		[]reconcile.Step[*v1beta1.RWExternal, reconcile.Req[*v1beta1.RWExternal]]{
-			InitRWExternalStatus{},
-			EnsureInput{},
+	req2 := &RWExternalReconcileReq{
+		Req: &reconcile.ReqBase[*v1beta1.RWExternal]{
+			Ctx:      ctx,
+			Request:  req,
+			Log:      log.FromContext(ctx),
+			Client:   r.Client,
+			Instance: &v1beta1.RWExternal{},
 		},
+	}
+	steps := []reconcile.Step[*v1beta1.RWExternal, *RWExternalReconcileReq]{
+		InitRWExternalStatus{},
+		EnsureInput{},
+	}
+	return reconcile.NewReqHandler[*v1beta1.RWExternal, *RWExternalReconcileReq](
+		req2, steps,
 	)()
 }
 
@@ -69,13 +80,19 @@ func (r *RWExternalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+type RWExternalReconcileReq struct {
+	reconcile.Req[*v1beta1.RWExternal]
+	divident *int
+	divisor  *int
+}
+
 type InitRWExternalStatus struct{}
 
 func (s InitRWExternalStatus) GetName() string {
 	return "Init status"
 }
 
-func (s InitRWExternalStatus) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcile.Result {
+func (s InitRWExternalStatus) Do(r *RWExternalReconcileReq) reconcile.Result {
 	// TODO(gibi): generalize this to collect condition types from Steps to
 	// initialize
 	cl := condition.CreateList(
@@ -85,7 +102,7 @@ func (s InitRWExternalStatus) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcil
 			condition.InputReadyInitMessage,
 		),
 	)
-	r.Instance.Status.Conditions.Init(&cl)
+	r.GetInstance().Status.Conditions.Init(&cl)
 	return r.OK()
 }
 
@@ -95,16 +112,16 @@ func (s EnsureInput) GetName() string {
 	return "Ensure input is available"
 }
 
-func (s EnsureInput) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcile.Result {
+func (s EnsureInput) Do(r *RWExternalReconcileReq) reconcile.Result {
 	secret := &corev1.Secret{}
 	secretName := types.NamespacedName{
-		Namespace: r.Instance.Namespace,
-		Name:      r.Instance.Spec.InputSecret,
+		Namespace: r.GetInstance().Namespace,
+		Name:      r.GetInstance().Spec.InputSecret,
 	}
-	err := r.Client.Get(r.Ctx, secretName, secret)
+	err := r.GetClient().Get(r.GetCtx(), secretName, secret)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			r.Instance.Status.Conditions.Set(condition.FalseCondition(
+			r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
 				condition.InputReadyCondition,
 				condition.RequestedReason,
 				condition.SeverityInfo,
@@ -114,7 +131,7 @@ func (s EnsureInput) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcile.Result 
 			// to simplify defaulting
 			return r.Requeue(nil)
 		}
-		r.Instance.Status.Conditions.Set(condition.FalseCondition(
+		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
 			condition.InputReadyCondition,
 			condition.ErrorReason,
 			condition.SeverityWarning,
@@ -131,7 +148,7 @@ func (s EnsureInput) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcile.Result 
 		_, ok := secret.Data[field]
 		if !ok {
 			err := fmt.Errorf("field '%s' not found in secret/%s", field, secretName.Name)
-			r.Instance.Status.Conditions.Set(condition.FalseCondition(
+			r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
 				condition.InputReadyCondition,
 				condition.ErrorReason,
 				condition.SeverityWarning,
@@ -140,7 +157,32 @@ func (s EnsureInput) Do(r *reconcile.Req[*v1beta1.RWExternal]) reconcile.Result 
 			return r.Error(err)
 		}
 	}
-	// TODO(gibi): Store input data in Req
+
+	d, err := strconv.Atoi(string(secret.Data["divident"]))
+	if err != nil {
+		err := fmt.Errorf("divident in secret/%s cannot be converted to int: %w", secretName.Name, err)
+		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
+			condition.InputReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.InputReadyErrorMessage,
+			err.Error()))
+		return r.Error(err)
+	}
+	r.divident = &d
+
+	d, err = strconv.Atoi(string(secret.Data["divisor"]))
+	if err != nil {
+		err := fmt.Errorf("divisor in secret/%s cannot be converted to int: %w", secretName.Name, err)
+		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
+			condition.InputReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.InputReadyErrorMessage,
+			err.Error()))
+		return r.Error(err)
+	}
+	r.divisor = &d
 
 	// TODO(gibi): Ensure that watch is added for Secrets
 

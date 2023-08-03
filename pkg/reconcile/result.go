@@ -26,15 +26,15 @@ func (r Result) Unwrap() (ctrl.Result, error) {
 	return r.Result, r.err
 }
 
-func (r *Req[T]) OK() Result {
+func (r ReqBase[T]) OK() Result {
 	return Result{Result: ctrl.Result{}, err: nil}
 }
 
-func (r *Req[T]) Error(err error) Result {
+func (r ReqBase[T]) Error(err error) Result {
 	return Result{Result: ctrl.Result{}, err: err}
 }
 
-func (r *Req[T]) Requeue(after *time.Duration) Result {
+func (r ReqBase[T]) Requeue(after *time.Duration) Result {
 	if after != nil {
 		return Result{Result: ctrl.Result{RequeueAfter: *after}, err: nil}
 	}

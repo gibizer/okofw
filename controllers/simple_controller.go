@@ -37,7 +37,7 @@ type SimpleReconciler struct {
 }
 
 type SimpleRReq struct {
-	reconcile.ReqBase[*v1beta1.Simple]
+	reconcile.DefaultReq[*v1beta1.Simple]
 }
 
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=simples,verbs=get;list;watch;create;update;patch;delete
@@ -49,7 +49,7 @@ type SimpleRReq struct {
 func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 
 	rReq := &SimpleRReq{
-		ReqBase: reconcile.ReqBase[*v1beta1.Simple]{
+		DefaultReq: reconcile.DefaultReq[*v1beta1.Simple]{
 			Ctx:      ctx,
 			Request:  req,
 			Log:      log.FromContext(ctx),

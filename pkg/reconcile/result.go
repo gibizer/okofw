@@ -2,42 +2,47 @@ package reconcile
 
 import (
 	"fmt"
-	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Result defines the outcome of a given reconciliation call
-type Result struct {
-	ctrl.Result
-	err error
+type Result interface {
+	Unwrap() (ctrl.Result, error)
+	String() string
+	Err() error
+	IsError() bool
+	IsRequeue() bool
 }
 
-func (r Result) String() string {
+type DefaultResult struct {
+	ctrl.Result
+	err        error
+	requeueMsg string
+}
+
+func (r DefaultResult) String() string {
 	if r.err != nil {
-		return fmt.Sprintf("Reconciliation failed: %v", r.err)
+		return fmt.Sprintf("Failure: %v", r.err)
 	}
 	if r.Requeue {
-		return fmt.Sprintf("Reconciliation requeued after %v", r.RequeueAfter)
+		return fmt.Sprintf("Requeue(%s): %s", r.RequeueAfter, r.requeueMsg)
 	}
-	return "Reconciliation succeded"
+	return "Succeeded"
 }
 
-func (r Result) Unwrap() (ctrl.Result, error) {
+func (r DefaultResult) Unwrap() (ctrl.Result, error) {
 	return r.Result, r.err
 }
 
-func (r ReqBase[T]) OK() Result {
-	return Result{Result: ctrl.Result{}, err: nil}
+func (r DefaultResult) IsError() bool {
+	return r.err != nil
 }
 
-func (r ReqBase[T]) Error(err error) Result {
-	return Result{Result: ctrl.Result{}, err: err}
+func (r DefaultResult) IsRequeue() bool {
+	return r.Result != ctrl.Result{}
 }
 
-func (r ReqBase[T]) Requeue(after *time.Duration) Result {
-	if after != nil {
-		return Result{Result: ctrl.Result{RequeueAfter: *after}, err: nil}
-	}
-	return Result{Result: ctrl.Result{Requeue: true}, err: nil}
+func (r DefaultResult) Err() error {
+	return r.err
 }

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -65,12 +66,13 @@ type RWExternalRReq struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	rReq := &RWExternalRReq{
-		Req: &reconcile.ReqBase[*v1beta1.RWExternal]{
-			Ctx:      ctx,
-			Request:  req,
-			Log:      log.FromContext(ctx),
-			Client:   r.Client,
-			Instance: &v1beta1.RWExternal{},
+		Req: &reconcile.DefaultReq[*v1beta1.RWExternal]{
+			Ctx:            ctx,
+			Request:        req,
+			Log:            log.FromContext(ctx),
+			Client:         r.Client,
+			Instance:       &v1beta1.RWExternal{},
+			RequeueTimeout: time.Duration(1) * time.Second,
 		},
 		Divident: nil,
 		Divisor:  nil,
@@ -129,10 +131,7 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 				condition.RequestedReason,
 				condition.SeverityInfo,
 				"Missing input: secret/"+secretName.Name))
-			// TODO(gibi): allow passing a reason message to Requeue
-			// TODO(gibi): make require timeout a param of the RequestHandler
-			// to simplify defaulting
-			return r.Requeue(nil)
+			return r.RequeueAfter("Waiting for input secret/"+secretName.Name, nil)
 		}
 		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
 			condition.InputReadyCondition,

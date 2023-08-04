@@ -27,10 +27,13 @@ import (
 	"golang.org/x/text/language"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"
@@ -202,7 +205,35 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 		return r.Error(err, log)
 	}
 
-	// TODO(gibi): implement storing the output in a Secret
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.GetInstance().Name,
+			Namespace: r.GetInstance().Namespace,
+		},
+	}
+
+	_, err := controllerutil.CreateOrPatch(r.GetCtx(), r.GetClient(), secret, func() error {
+		secret.Data = map[string][]byte{
+			"quotient":  []byte(fmt.Sprint(*r.Divident / *r.Divisor)),
+			"remainder": []byte(fmt.Sprint(*r.Divident % *r.Divisor)),
+		}
+
+		err := controllerutil.SetControllerReference(r.GetInstance(), secret, scheme.Scheme)
+		return err
+	})
+
+	if err != nil {
+		err := fmt.Errorf("failed to create or patch output secret: %w", err)
+		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
+			v1beta1.OutputReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityError,
+			v1beta1.OutputReadyErrorMessage,
+			err.Error()))
+		return r.Error(err, log)
+	}
+
+	r.GetInstance().Status.OutputSecret = &secret.Name
 	r.GetInstance().Status.Conditions.MarkTrue(v1beta1.OutputReadyCondition, v1beta1.OutputReadyReadyMessage)
 	return r.OK()
 }

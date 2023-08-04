@@ -206,6 +206,48 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
 			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
 
+			g.Expect(rw.Status.OutputSecret).NotTo(BeNil())
+			output := th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
+			g.Expect(output.Data).To(HaveKeyWithValue("quotient", []byte("2")))
+			g.Expect(output.Data).To(HaveKeyWithValue("remainder", []byte("0")))
+
+			g.Expect(output.OwnerReferences[0].Kind).To(Equal("RWExternal"))
+			g.Expect(output.OwnerReferences[0].Name).To(Equal(rw.Name))
+			g.Expect(*output.OwnerReferences[0].Controller).To(BeTrue())
+
 		}, timeout, interval).Should(Succeed())
 	})
+	It("Deletes the output secret when RWExternal is deleted", func() {
+		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
+		th.CreateSecret(secretName, map[string][]byte{
+			"divident": []byte("10"),
+			"divisor":  []byte("5"),
+		})
+		DeferCleanup(DeleteInstance, secretName)
+
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "input"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).NotTo(BeNil())
+			cond := &condition.Condition{}
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+
+			g.Expect(rw.Status.OutputSecret).NotTo(BeNil())
+			th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
+
+		}, timeout, interval).Should(Succeed())
+
+		rw := GetRWExternal(rwName)
+		th.DeleteInstance(rw)
+
+		Consistently(func(g Gomega) {
+			th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
+		}, timeout, interval).Should(Succeed())
+
+	})
+
 })

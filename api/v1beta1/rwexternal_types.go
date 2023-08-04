@@ -21,6 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	OutputReadyCondition    condition.Type = "OutputReady"
+	OutputReadyInitMessage  string         = "Output not ready"
+	OutputReadyErrorMessage string         = "Output generation failed: %s"
+	OutputReadyReadyMessage string         = "Output ready"
+)
+
 // RWExternalSpec defines the desired state of RWExternal
 type RWExternalSpec struct {
 	// +kubebuilder:validation:Required
@@ -61,4 +68,12 @@ type RWExternalList struct {
 
 func init() {
 	SchemeBuilder.Register(&RWExternal{}, &RWExternalList{})
+}
+
+func (i RWExternal) GetConditions() condition.Conditions {
+	return i.Status.Conditions
+}
+
+func (i *RWExternal) SetConditions(conditions condition.Conditions) {
+	i.Status.Conditions = conditions
 }

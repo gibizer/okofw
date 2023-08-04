@@ -71,3 +71,11 @@ type SimpleList struct {
 func init() {
 	SchemeBuilder.Register(&Simple{}, &SimpleList{})
 }
+
+func (i Simple) GetConditions() condition.Conditions {
+	return i.Status.Conditions
+}
+
+func (i *Simple) SetConditions(conditions condition.Conditions) {
+	i.Status.Conditions = conditions
+}

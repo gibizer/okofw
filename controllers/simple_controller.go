@@ -59,7 +59,7 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		},
 	}
 	steps := []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{
-		InitStatus{},
+		&reconcile.InitConditions[*v1beta1.Simple, *SimpleRReq]{},
 		EnsureNonZeroDivisor{},
 		Divide{},
 	}
@@ -74,18 +74,9 @@ func (r *SimpleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-type InitStatus struct{}
-
-func (s InitStatus) GetName() string {
-	return "InitStatus"
+type EnsureNonZeroDivisor struct {
+	reconcile.BaseStep[*v1beta1.Simple, *SimpleRReq]
 }
-
-func (s InitStatus) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
-	r.GetInstance().Status.Conditions.Init(&condition.Conditions{})
-	return r.OK()
-}
-
-type EnsureNonZeroDivisor struct{}
 
 func (s EnsureNonZeroDivisor) GetName() string {
 	return "EnsureNonZeroDivisor"
@@ -100,7 +91,9 @@ func (s EnsureNonZeroDivisor) Do(r *SimpleRReq, log logr.Logger) reconcile.Resul
 	return r.OK()
 }
 
-type Divide struct{}
+type Divide struct {
+	reconcile.BaseStep[*v1beta1.Simple, *SimpleRReq]
+}
 
 func (s Divide) GetName() string {
 	return "Divide"

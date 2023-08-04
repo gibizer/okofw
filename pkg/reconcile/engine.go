@@ -34,8 +34,17 @@ func handleReq[T client.Object, R Req[T]](
 	steps []Step[T, R],
 	postSteps []Step[T, R],
 ) Result {
+
+	// do the late setup of all steps based on every requested step
+	// NOTE(gibi): this is a bit wasteful as steps are static between reconcile
+	// runs so this setup could be done only once at manager setup
+	for _, step := range steps {
+		step.SetupFromSteps(steps, r.GetLog())
+	}
+
 	var result Result
 
+	// Read the instance
 	err := r.GetClient().Get(r.GetCtx(), r.GetRequest().NamespacedName, r.GetInstance())
 	if err != nil {
 		r.GetLog().Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
@@ -43,6 +52,7 @@ func handleReq[T client.Object, R Req[T]](
 	}
 
 	if !r.GetInstance().GetDeletionTimestamp().IsZero() {
+		// Cleanup reconciliation
 		// TODO(gibi): create a delete path for cleanup
 		r.GetLog().Info("Deleting instance")
 	} else {
@@ -79,3 +89,10 @@ func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
 	}
 	return result
 }
+
+// func SetupFromSteps[T client.Object, R Req[T]](
+// 	steps []Step[T, R], builder *builder.Builder,
+// ) *builder.Builder {
+
+// 	return builder
+// }

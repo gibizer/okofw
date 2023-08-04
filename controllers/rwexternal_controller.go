@@ -52,6 +52,12 @@ type RWExternalRReq struct {
 	Divisor  *int
 }
 
+var rwExternalSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
+	&reconcile.InitConditions[*v1beta1.RWExternal, *RWExternalRReq]{},
+	EnsureInput{},
+	DivideAndStore{},
+}
+
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/finalizers,verbs=update
@@ -74,11 +80,7 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		Divident: nil,
 		Divisor:  nil,
 	}
-	steps := []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
-		InitRWExternalStatus{},
-		EnsureInput{},
-	}
-	return reconcile.NewReqHandler(rReq, steps)()
+	return reconcile.NewReqHandler(rReq, rwExternalSteps)()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -88,30 +90,22 @@ func (r *RWExternalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-type InitRWExternalStatus struct{}
-
-func (s InitRWExternalStatus) GetName() string {
-	return "InitStatus"
+type EnsureInput struct {
+	reconcile.BaseStep[*v1beta1.RWExternal, *RWExternalRReq]
 }
 
-func (s InitRWExternalStatus) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
-	// TODO(gibi): generalize this to collect condition types from Steps to
-	// initialize
-	cl := condition.CreateList(
-		condition.UnknownCondition(
+func (s EnsureInput) GetName() string {
+	return "EnsureInput"
+}
+
+func (s EnsureInput) GetManagedConditions() condition.Conditions {
+	return []condition.Condition{
+		*condition.UnknownCondition(
 			condition.InputReadyCondition,
 			condition.InitReason,
 			condition.InputReadyInitMessage,
 		),
-	)
-	r.GetInstance().Status.Conditions.Init(&cl)
-	return r.OK()
-}
-
-type EnsureInput struct{}
-
-func (s EnsureInput) GetName() string {
-	return "EnsureInput"
+	}
 }
 
 func (s EnsureInput) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
@@ -175,5 +169,29 @@ func (s EnsureInput) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
 
 	// TODO(gibi): Ensure that watch is added for Secrets
 
+	return r.OK()
+}
+
+type DivideAndStore struct {
+	reconcile.BaseStep[*v1beta1.RWExternal, *RWExternalRReq]
+}
+
+func (s DivideAndStore) GetName() string {
+	return "DivideAndStore"
+}
+
+func (s DivideAndStore) GetManagedConditions() condition.Conditions {
+	return []condition.Condition{
+		*condition.UnknownCondition(
+			v1beta1.OutputReadyCondition,
+			condition.InitReason,
+			v1beta1.OutputReadyInitMessage,
+		),
+	}
+}
+
+func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
+	// TODO(gibi): implement storing the output in a Secret
+	r.GetInstance().Status.Conditions.MarkTrue(v1beta1.OutputReadyCondition, v1beta1.OutputReadyReadyMessage)
 	return r.OK()
 }

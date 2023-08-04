@@ -62,6 +62,28 @@ var _ = Describe("RWExternal controller", func() {
 		}, timeout, interval).Should(Succeed())
 	})
 
+	It("Initialize every conditions", func() {
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "foo"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).To(HaveLen(3))
+
+			cond := &condition.Condition{}
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
+			g.Expect(cond.Message).To(ContainSubstring("Missing input: secret/foo"))
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionUnknown))
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.ReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionUnknown))
+
+		}, timeout, interval).Should(Succeed())
+	})
+
 	It("Reports if input field is missing", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{})
@@ -150,9 +172,14 @@ var _ = Describe("RWExternal controller", func() {
 		Eventually(func(g Gomega) {
 			rw := GetRWExternal(rwName)
 			g.Expect(rw.Status.Conditions).NotTo(BeNil())
-			inputCondition := &condition.Condition{}
-			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), inputCondition))
-			g.Expect(inputCondition.Status).To(Equal(corev1.ConditionTrue))
+			cond := &condition.Condition{}
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+
 		}, timeout, interval).Should(Succeed())
 	})
 })

@@ -32,6 +32,8 @@ type Req[T client.Object] interface {
 	GetRequest() ctrl.Request
 	GetClient() client.Client
 	GetInstance() T
+	SnapshotInstance()
+	GetInstanceSnapshot() T
 	GetDefaultRequeueTimeout() time.Duration
 
 	ResultGenerator
@@ -40,12 +42,13 @@ type Req[T client.Object] interface {
 // DefaultReq provides the minimal implementation of a reconcile request. This
 // can be used to embed into a CRD specific request type
 type DefaultReq[T client.Object] struct {
-	Ctx            context.Context
-	Log            logr.Logger
-	Request        ctrl.Request
-	Client         client.Client
-	Instance       T
-	RequeueTimeout time.Duration
+	Ctx              context.Context
+	Log              logr.Logger
+	Request          ctrl.Request
+	Client           client.Client
+	Instance         T
+	InstanceSnapshot T
+	RequeueTimeout   time.Duration
 }
 
 // --- implement Req[T]
@@ -68,6 +71,14 @@ func (r *DefaultReq[T]) GetClient() client.Client {
 
 func (r *DefaultReq[T]) GetInstance() T {
 	return r.Instance
+}
+
+func (r *DefaultReq[T]) SnapshotInstance() {
+	r.InstanceSnapshot = r.Instance.DeepCopyObject().(T)
+}
+
+func (r DefaultReq[T]) GetInstanceSnapshot() T {
+	return r.InstanceSnapshot
 }
 
 func (r *DefaultReq[T]) GetDefaultRequeueTimeout() time.Duration {

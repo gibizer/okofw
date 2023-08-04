@@ -34,16 +34,6 @@ func (s SaveInstance[T, R]) GetName() string {
 	return "PersistInstance"
 }
 
-func (s SaveInstance[T, R]) Do(r R, log logr.Logger) Result {
-	// TODO(gibi): implement Ready condition calculation
-	// TODO(gibi): implement Patching
-	err := r.GetClient().Status().Update(r.GetCtx(), r.GetInstance())
-	if err != nil {
-		return r.Error(err, log)
-	}
-	return r.OK()
-}
-
 // InitConditions is a generic step that automatically initialize the
 // conditions list of the instance Status.
 // It collects the conditions managed by other steps to make it so.

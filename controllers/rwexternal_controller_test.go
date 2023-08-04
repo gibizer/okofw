@@ -158,6 +158,32 @@ var _ = Describe("RWExternal controller", func() {
 		}, timeout, interval).Should(Succeed())
 	})
 
+	It("Reports division by zero", func() {
+		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
+		th.CreateSecret(secretName, map[string][]byte{
+			"divident": []byte("10"),
+			"divisor":  []byte("0"),
+		})
+		DeferCleanup(DeleteInstance, secretName)
+
+		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "input"})
+		DeferCleanup(DeleteInstance, rwName)
+
+		Eventually(func(g Gomega) {
+			rw := GetRWExternal(rwName)
+			g.Expect(rw.Status.Conditions).NotTo(BeNil())
+			cond := &condition.Condition{}
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.InputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
+			g.Expect(cond.Message).To(ContainSubstring("Output generation failed: division by zero"))
+
+		}, timeout, interval).Should(Succeed())
+	})
+
 	It("Stores the result in an output Secret", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{

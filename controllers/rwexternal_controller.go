@@ -191,6 +191,17 @@ func (s DivideAndStore) GetManagedConditions() condition.Conditions {
 }
 
 func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
+	if *r.Divisor == 0 {
+		err := fmt.Errorf("division by zero")
+		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
+			v1beta1.OutputReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityError,
+			v1beta1.OutputReadyErrorMessage,
+			err.Error()))
+		return r.Error(err, log)
+	}
+
 	// TODO(gibi): implement storing the output in a Secret
 	r.GetInstance().Status.Conditions.MarkTrue(v1beta1.OutputReadyCondition, v1beta1.OutputReadyReadyMessage)
 	return r.OK()

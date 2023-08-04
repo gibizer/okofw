@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 
 	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
@@ -94,10 +95,10 @@ func (r *RWExternalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 type InitRWExternalStatus struct{}
 
 func (s InitRWExternalStatus) GetName() string {
-	return "Init status"
+	return "InitStatus"
 }
 
-func (s InitRWExternalStatus) Do(r *RWExternalRReq) reconcile.Result {
+func (s InitRWExternalStatus) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
 	// TODO(gibi): generalize this to collect condition types from Steps to
 	// initialize
 	cl := condition.CreateList(
@@ -114,10 +115,10 @@ func (s InitRWExternalStatus) Do(r *RWExternalRReq) reconcile.Result {
 type EnsureInput struct{}
 
 func (s EnsureInput) GetName() string {
-	return "Ensure input is available"
+	return "EnsureInput"
 }
 
-func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
+func (s EnsureInput) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
 	secret := &corev1.Secret{}
 	secretName := types.NamespacedName{
 		Namespace: r.GetInstance().Namespace,
@@ -133,13 +134,14 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 				"Missing input: secret/"+secretName.Name))
 			return r.RequeueAfter("Waiting for input secret/"+secretName.Name, nil)
 		}
+		err = fmt.Errorf("failed to read/secret/%s:%w", secretName.Name, err)
 		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(
 			condition.InputReadyCondition,
 			condition.ErrorReason,
 			condition.SeverityWarning,
 			condition.InputReadyErrorMessage,
 			err.Error()))
-		return r.Error(err)
+		return r.Error(err, log)
 	}
 
 	expectedFields := []string{
@@ -156,7 +158,7 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 				condition.SeverityWarning,
 				condition.InputReadyErrorMessage,
 				err.Error()))
-			return r.Error(err)
+			return r.Error(err, log)
 		}
 		d, err := strconv.Atoi(string(v))
 		if err != nil {
@@ -167,7 +169,7 @@ func (s EnsureInput) Do(r *RWExternalRReq) reconcile.Result {
 				condition.SeverityWarning,
 				condition.InputReadyErrorMessage,
 				err.Error()))
-			return r.Error(err)
+			return r.Error(err, log)
 		}
 		f := reflect.ValueOf(r).Elem().FieldByName(cases.Title(language.English, cases.Compact).String(field))
 		f.Set(reflect.ValueOf(&d))

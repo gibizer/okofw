@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -8,20 +9,20 @@ import (
 // type with the R reconcile request type
 type Step[T client.Object, R Req[T]] interface {
 	GetName() string
-	Do(r R) Result
+	Do(r R, log logr.Logger) Result
 }
 
 type SaveInstance[T client.Object, R Req[T]] struct {
 }
 
 func (s SaveInstance[T, R]) GetName() string {
-	return "Persist instance state"
+	return "PersistInstance"
 }
 
-func (s SaveInstance[T, R]) Do(r R) Result {
+func (s SaveInstance[T, R]) Do(r R, log logr.Logger) Result {
 	err := r.GetClient().Status().Update(r.GetCtx(), r.GetInstance())
 	if err != nil {
-		return r.Error(err)
+		return r.Error(err, log)
 	}
 	return r.OK()
 }

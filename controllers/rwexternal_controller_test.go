@@ -47,6 +47,7 @@ var _ = Describe("RWExternal controller", func() {
 		CreateNamespace(namespace)
 		DeferCleanup(DeleteNamespace, namespace)
 	})
+
 	It("Reports if input secret is missing", func() {
 		rwName := CreateRWExternal(namespace, v1beta1.RWExternalSpec{InputSecret: "foo"})
 		DeferCleanup(DeleteInstance, rwName)

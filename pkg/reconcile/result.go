@@ -13,6 +13,7 @@ type Result interface {
 	Err() error
 	IsError() bool
 	IsRequeue() bool
+	IsOK() bool
 }
 
 type DefaultResult struct {
@@ -22,10 +23,10 @@ type DefaultResult struct {
 }
 
 func (r DefaultResult) String() string {
-	if r.err != nil {
+	if r.IsError() {
 		return fmt.Sprintf("Failure: %v", r.err)
 	}
-	if r.Requeue {
+	if r.IsRequeue() {
 		return fmt.Sprintf("Requeue(%s): %s", r.RequeueAfter, r.requeueMsg)
 	}
 	return "Succeeded"
@@ -45,4 +46,8 @@ func (r DefaultResult) IsRequeue() bool {
 
 func (r DefaultResult) Err() error {
 	return r.err
+}
+
+func (r DefaultResult) IsOK() bool {
+	return !r.IsError() && !r.IsRequeue()
 }

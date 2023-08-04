@@ -27,6 +27,7 @@ import (
 
 	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
 	"github.com/gibizer/okofw/pkg/reconcile"
+	"github.com/go-logr/logr"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
 
@@ -76,10 +77,10 @@ func (r *SimpleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 type InitStatus struct{}
 
 func (s InitStatus) GetName() string {
-	return "Init status"
+	return "InitStatus"
 }
 
-func (s InitStatus) Do(r *SimpleRReq) reconcile.Result {
+func (s InitStatus) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	r.GetInstance().Status.Conditions.Init(&condition.Conditions{})
 	return r.OK()
 }
@@ -87,12 +88,14 @@ func (s InitStatus) Do(r *SimpleRReq) reconcile.Result {
 type EnsureNonZeroDivisor struct{}
 
 func (s EnsureNonZeroDivisor) GetName() string {
-	return "Ensure non-zereo divisor"
+	return "EnsureNonZeroDivisor"
 }
-func (s EnsureNonZeroDivisor) Do(r *SimpleRReq) reconcile.Result {
+func (s EnsureNonZeroDivisor) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	if r.GetInstance().Spec.Divisor == 0 {
-		r.GetInstance().Status.Conditions.MarkFalse(condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, "division by zero")
-		return r.Error(fmt.Errorf("division by zero"))
+		err := fmt.Errorf("division by zero")
+		r.GetInstance().Status.Conditions.MarkFalse(
+			condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, err.Error())
+		return r.Error(err, log)
 	}
 	return r.OK()
 }
@@ -102,7 +105,7 @@ type Divide struct{}
 func (s Divide) GetName() string {
 	return "Divide"
 }
-func (s Divide) Do(r *SimpleRReq) reconcile.Result {
+func (s Divide) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	instance := r.GetInstance()
 	quotient := instance.Spec.Divident / instance.Spec.Divisor
 	remainder := instance.Spec.Divident % instance.Spec.Divisor

@@ -1,8 +1,6 @@
 package reconcile
 
 import (
-	"fmt"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -14,6 +12,8 @@ type Handler func() (ctrl.Result, error)
 func NewReqHandler[T client.Object, R Req[T]](
 	r R, steps []Step[T, R],
 ) Handler {
+	//TODO(gibi): transform this to a builder
+
 	// steps to do always regardles of why we exit the reconciliation
 	postSteps := []Step[T, R]{
 		SaveInstance[T, R]{},
@@ -48,38 +48,34 @@ func handleReq[T client.Object, R Req[T]](
 	} else {
 		// Normal reconciliation
 		for _, step := range steps {
-			// TODO(gibi): create a step specific logger for the step
-			result = step.Do(r)
-			if result.IsError() {
-				r.GetLog().Error(result.Err(), fmt.Sprintf("Step: %s: %s", step.GetName(), result))
+			result = runStep(step, r)
+			if !result.IsOK() {
 				// jump to final steps
 				break
 			}
-			if result.IsRequeue() {
-				r.GetLog().Info(fmt.Sprintf("Step: %s: %s ", step.GetName(), result))
-				// jump to final steps
-				break
-			}
-			r.GetLog().Info(fmt.Sprintf("Step: %s: %s", step.GetName(), result))
 		}
 	}
 
 	for _, step := range postSteps {
 		// We don't want to override the steps result unless the post step
 		// result is signalling a negative result
-		postResult := step.Do(r)
-		if postResult.IsError() {
-			r.GetLog().Error(result.Err(), fmt.Sprintf("PostStep: %s: %s", step.GetName(), postResult))
+		postResult := runStep(step, r)
+		if !postResult.IsOK() {
+			// override the result and run the rest of the post steps
 			result = postResult
-			// run the rest of the post steps
 		}
-		if postResult.IsRequeue() {
-			r.GetLog().Info(fmt.Sprintf("PostStep: %s: %s", step.GetName(), postResult))
-			result = postResult
-			// run the rest of the post steps
-		}
-		r.GetLog().Info(fmt.Sprintf("PostStep: %s: %s", step.GetName(), postResult))
 	}
 
+	return result
+}
+
+func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
+	stepLog := r.GetLog().WithName(step.GetName())
+	result := step.Do(r, stepLog)
+	if result.IsError() {
+		stepLog.Error(result.Err(), result.String())
+	} else {
+		stepLog.Info(result.String())
+	}
 	return result
 }

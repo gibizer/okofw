@@ -11,7 +11,7 @@ import (
 
 type ResultGenerator interface {
 	OK() Result
-	Error(error) Result
+	Error(error, logr.Logger) Result
 	Requeue(msg string) Result
 	RequeueAfter(msg string, after *time.Duration) Result
 }
@@ -72,7 +72,8 @@ func (r DefaultReq[T]) OK() Result {
 	return DefaultResult{Result: ctrl.Result{}, err: nil}
 }
 
-func (r DefaultReq[T]) Error(err error) Result {
+func (r DefaultReq[T]) Error(err error, log logr.Logger) Result {
+	log.Error(err, "")
 	return DefaultResult{Result: ctrl.Result{}, err: err}
 }
 

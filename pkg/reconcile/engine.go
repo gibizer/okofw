@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 type Handler func() (ctrl.Result, error)
@@ -13,13 +15,13 @@ type Handler func() (ctrl.Result, error)
 // NewReqHandler builds up a function that can handle the current reconcile
 // request for CRD type T with reconcile request type R
 func NewReqHandler[T client.Object, R Req[T]](
-	r R, steps []Step[T, R],
+	r R, steps []Step[T, R], cleanups []Step[T, R],
 ) Handler {
 	//TODO(gibi): transform this to a builder
 
 	return func() (ctrl.Result, error) {
 		r.GetLog().Info("Reconciling")
-		result := handleReq[T, R](r, steps)
+		result := handleReq[T, R](r, steps, cleanups)
 		r.GetLog().Info("Reconciled", "result", result)
 		return result.Unwrap()
 	}
@@ -27,13 +29,15 @@ func NewReqHandler[T client.Object, R Req[T]](
 
 // handleReq implements a single Reconcile run by going throught each
 // reconciliation steps provided.
-func handleReq[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
+func handleReq[T client.Object, R Req[T]](
+	r R,
+	steps []Step[T, R],
+	cleanups []Step[T, R],
+) Result {
 
 	// NOTE(gibi): this is a bit wasteful as steps are static between reconcile
 	// runs so this setup could be done only once at manager setup
 	lateStepSetup(steps, r)
-
-	result := r.OK()
 
 	// Read the instance
 	readResult, found := readInstance[T, R](r)
@@ -41,6 +45,7 @@ func handleReq[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 		return readResult
 	}
 	if !found {
+		// Instance not found nothing to reconcile so skip the rest
 		return r.OK()
 	}
 
@@ -48,8 +53,9 @@ func handleReq[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 	// end of the reconciliation
 	r.SnapshotInstance()
 
+	var result Result
 	if !r.GetInstance().GetDeletionTimestamp().IsZero() {
-		reconcileDelete[T, R](r)
+		result = reconcileDelete(r, cleanups)
 	} else {
 		result = reconcileNormal(r, steps)
 	}
@@ -57,9 +63,8 @@ func handleReq[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 	// TODO(gibi): implement Ready condition calculation before save
 
 	saveResult := saveInstance[T, R](r)
-	// intentionally only overwriting the normal steps' result only if save
-	// failed so a requeue request or a step error is propagated if save
-	// succeeded
+	// intentionally overwrite the normal steps' result only if save
+	// failed so a requeue request or a step error is propagated
 	if !saveResult.IsOK() {
 		return saveResult
 	}
@@ -87,20 +92,52 @@ func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
 }
 
 func reconcileNormal[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
-	result := r.OK()
+	// before we change anything esure that we have our own finalizer set so
+	// we can catch Instance delete and do a proper cleanup
+	updated := controllerutil.AddFinalizer(
+		r.GetInstance(), r.GetInstance().GetObjectKind().GroupVersionKind().Kind)
+	if updated {
+		r.GetLog().Info("Added finalizer to ourselves")
+		// we intentionally force a requeue imediately here to persist the
+		// Instance with the finalizer. We need to have our own
+		// finalizer persisted before we try to create any external resources
+		return r.RequeueAfter(
+			"Requeue to get our finalizer persisted before continue",
+			pointer.Duration(r.GetDefaultRequeueTimeout()),
+		)
+	}
+
 	for _, step := range steps {
-		result = runStep(step, r)
+		result := runStep(step, r)
 		if !result.IsOK() {
-			// stop progressing
+			// stop progressing as something failed
 			return result
 		}
 	}
-	return result
+	return r.OK()
 }
 
-func reconcileDelete[T client.Object, R Req[T]](r R) {
-	// TODO(gibi): create delete customizations
+func reconcileDelete[T client.Object, R Req[T]](r R, cleanups []Step[T, R]) Result {
 	r.GetLog().Info("Deleting instance")
+
+	for _, step := range cleanups {
+		result := runStep(step, r)
+		if !result.IsOK() {
+			// skip the rest of the cleanups it will be done in a later
+			// reconcile
+			return result
+		}
+	}
+
+	// all cleaups are done successfully so we can remove the finalizer
+	// from ourselves
+	updated := controllerutil.RemoveFinalizer(
+		r.GetInstance(), r.GetInstance().GetObjectKind().GroupVersionKind().Kind)
+	if updated {
+		r.GetLog().Info("Removed finalizer from ourselves")
+	}
+
+	return r.OK()
 }
 
 func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {

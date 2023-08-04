@@ -211,10 +211,6 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(output.Data).To(HaveKeyWithValue("quotient", []byte("2")))
 			g.Expect(output.Data).To(HaveKeyWithValue("remainder", []byte("0")))
 
-			g.Expect(output.OwnerReferences[0].Kind).To(Equal("RWExternal"))
-			g.Expect(output.OwnerReferences[0].Name).To(Equal(rw.Name))
-			g.Expect(*output.OwnerReferences[0].Controller).To(BeTrue())
-
 		}, timeout, interval).Should(Succeed())
 	})
 	It("Deletes the output secret when RWExternal is deleted", func() {
@@ -244,8 +240,8 @@ var _ = Describe("RWExternal controller", func() {
 		rw := GetRWExternal(rwName)
 		th.DeleteInstance(rw)
 
-		Consistently(func(g Gomega) {
-			th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
+		Eventually(func(g Gomega) {
+			th.AssertSecretDoesNotExist(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
 		}, timeout, interval).Should(Succeed())
 
 	})

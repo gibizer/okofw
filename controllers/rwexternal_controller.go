@@ -30,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,14 +50,19 @@ type RWExternalReconciler struct {
 
 type RWExternalRReq struct {
 	reconcile.Req[*v1beta1.RWExternal]
-	Divident *int
-	Divisor  *int
+	Divident     *int
+	Divisor      *int
+	OutputSecret *corev1.Secret
 }
 
 var rwExternalSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
 	&reconcile.InitConditions[*v1beta1.RWExternal, *RWExternalRReq]{},
 	EnsureInput{},
 	DivideAndStore{},
+}
+
+var rwExternalCleanupSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
+	DeleteOutputSecret{},
 }
 
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
@@ -82,8 +86,14 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		},
 		Divident: nil,
 		Divisor:  nil,
+		OutputSecret: &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      req.Name,
+				Namespace: req.Namespace,
+			},
+		},
 	}
-	return reconcile.NewReqHandler(rReq, rwExternalSteps)()
+	return reconcile.NewReqHandler(rReq, rwExternalSteps, rwExternalCleanupSteps)()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -205,21 +215,15 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 		return r.Error(err, log)
 	}
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.GetInstance().Name,
-			Namespace: r.GetInstance().Namespace,
-		},
-	}
-
-	_, err := controllerutil.CreateOrPatch(r.GetCtx(), r.GetClient(), secret, func() error {
-		secret.Data = map[string][]byte{
+	_, err := controllerutil.CreateOrPatch(r.GetCtx(), r.GetClient(), r.OutputSecret, func() error {
+		r.OutputSecret.Data = map[string][]byte{
 			"quotient":  []byte(fmt.Sprint(*r.Divident / *r.Divisor)),
 			"remainder": []byte(fmt.Sprint(*r.Divident % *r.Divisor)),
 		}
-
-		err := controllerutil.SetControllerReference(r.GetInstance(), secret, scheme.Scheme)
-		return err
+		// NOTE(gibi): intentionally not setting owner ref to create the need
+		// for an explicit delete by the operator so we can use this example
+		// to exercise the cleanup codepath in this controller
+		return nil
 	})
 
 	if err != nil {
@@ -233,7 +237,27 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 		return r.Error(err, log)
 	}
 
-	r.GetInstance().Status.OutputSecret = &secret.Name
+	r.GetInstance().Status.OutputSecret = &r.OutputSecret.Name
 	r.GetInstance().Status.Conditions.MarkTrue(v1beta1.OutputReadyCondition, v1beta1.OutputReadyReadyMessage)
+	return r.OK()
+}
+
+type DeleteOutputSecret struct {
+	reconcile.BaseStep[*v1beta1.RWExternal, *RWExternalRReq]
+}
+
+func (s DeleteOutputSecret) GetName() string {
+	return "DeleteOutputSecret"
+}
+
+func (s DeleteOutputSecret) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
+	err := r.GetClient().Delete(r.GetCtx(), r.OutputSecret)
+	if k8s_errors.IsNotFound(err) {
+		return r.OK()
+	}
+	if err != nil {
+		err := fmt.Errorf("unable to delete secret/%s: %w", r.OutputSecret.Name, err)
+		return r.Error(err, log)
+	}
 	return r.OK()
 }

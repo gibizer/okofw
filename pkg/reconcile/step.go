@@ -30,8 +30,6 @@ type SaveInstance[T client.Object, R Req[T]] struct {
 	BaseStep[T, R]
 }
 
-//TODO(gibi): Add GetName to BaseStep and implement it based on struct type name
-
 func (s SaveInstance[T, R]) GetName() string {
 	return "PersistInstance"
 }

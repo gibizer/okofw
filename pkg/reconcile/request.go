@@ -35,6 +35,7 @@ type Req[T client.Object] interface {
 	SnapshotInstance()
 	GetInstanceSnapshot() T
 	GetDefaultRequeueTimeout() time.Duration
+	GetFinalizer() string
 
 	ResultGenerator
 }
@@ -81,8 +82,12 @@ func (r DefaultReq[T]) GetInstanceSnapshot() T {
 	return r.InstanceSnapshot
 }
 
-func (r *DefaultReq[T]) GetDefaultRequeueTimeout() time.Duration {
+func (r DefaultReq[T]) GetDefaultRequeueTimeout() time.Duration {
 	return r.RequeueTimeout
+}
+
+func (r DefaultReq[T]) GetFinalizer() string {
+	return r.GetInstance().GetObjectKind().GroupVersionKind().Kind
 }
 
 // --- implementing ResultGenerator

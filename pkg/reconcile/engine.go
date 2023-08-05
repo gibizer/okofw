@@ -94,8 +94,7 @@ func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
 func reconcileNormal[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 	// before we change anything esure that we have our own finalizer set so
 	// we can catch Instance delete and do a proper cleanup
-	updated := controllerutil.AddFinalizer(
-		r.GetInstance(), r.GetInstance().GetObjectKind().GroupVersionKind().Kind)
+	updated := controllerutil.AddFinalizer(r.GetInstance(), r.GetFinalizer())
 	if updated {
 		r.GetLog().Info("Added finalizer to ourselves")
 		// we intentionally force a requeue imediately here to persist the
@@ -131,8 +130,7 @@ func reconcileDelete[T client.Object, R Req[T]](r R, cleanups []Step[T, R]) Resu
 
 	// all cleaups are done successfully so we can remove the finalizer
 	// from ourselves
-	updated := controllerutil.RemoveFinalizer(
-		r.GetInstance(), r.GetInstance().GetObjectKind().GroupVersionKind().Kind)
+	updated := controllerutil.RemoveFinalizer(r.GetInstance(), r.GetFinalizer())
 	if updated {
 		r.GetLog().Info("Removed finalizer from ourselves")
 	}

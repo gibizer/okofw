@@ -3,6 +3,7 @@ package reconcile
 import (
 	"fmt"
 
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -103,12 +104,20 @@ func reconcileDelete[T client.Object, R Req[T]](r R) {
 }
 
 func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {
-	// TODO(gibi): hande NotFound and error differently
 	err := r.GetClient().Get(r.GetCtx(), r.GetRequest().NamespacedName, r.GetInstance())
+
 	if err != nil {
-		r.GetLog().Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
-		return r.OK(), false
+		if k8s_errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers. Return and don't requeue.
+			r.GetLog().Info("Instance not found, probably deleted before reconciled. Nothing to do.")
+			return r.OK(), false
+		}
+		err := fmt.Errorf("failed to read instance: %w", err)
+		return r.Error(err, r.GetLog()), false
 	}
+
 	return r.OK(), true
 }
 

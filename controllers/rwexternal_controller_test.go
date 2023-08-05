@@ -78,8 +78,10 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
 			g.Expect(cond.Status).To(Equal(corev1.ConditionUnknown))
 
+			// Ready condition mirrors the latest error
 			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.ReadyCondition), cond))
-			g.Expect(cond.Status).To(Equal(corev1.ConditionUnknown))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
+			g.Expect(cond.Message).To(ContainSubstring("Missing input: secret/foo"))
 
 		}, timeout, interval).Should(Succeed())
 	})
@@ -206,6 +208,9 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", v1beta1.OutputReadyCondition), cond))
 			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
 
+			g.Expect(rw.Status.Conditions).To(ContainElement(HaveField("Type", condition.ReadyCondition), cond))
+			g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+
 			g.Expect(rw.Status.OutputSecret).NotTo(BeNil())
 			output := th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
 			g.Expect(output.Data).To(HaveKeyWithValue("quotient", []byte("2")))
@@ -213,6 +218,7 @@ var _ = Describe("RWExternal controller", func() {
 
 		}, timeout, interval).Should(Succeed())
 	})
+
 	It("Deletes the output secret when RWExternal is deleted", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{

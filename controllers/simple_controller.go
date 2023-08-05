@@ -81,11 +81,22 @@ type EnsureNonZeroDivisor struct {
 func (s EnsureNonZeroDivisor) GetName() string {
 	return "EnsureNonZeroDivisor"
 }
+
+func (s EnsureNonZeroDivisor) GetManagedConditions() condition.Conditions {
+	return []condition.Condition{
+		*condition.UnknownCondition(
+			condition.InputReadyCondition,
+			condition.InitReason,
+			condition.InputReadyInitMessage,
+		),
+	}
+}
+
 func (s EnsureNonZeroDivisor) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	if r.GetInstance().Spec.Divisor == 0 {
 		err := fmt.Errorf("division by zero")
 		r.GetInstance().Status.Conditions.MarkFalse(
-			condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, err.Error())
+			condition.InputReadyCondition, condition.ErrorReason, condition.SeverityError, err.Error())
 		return r.Error(err, log)
 	}
 	return r.OK()
@@ -98,12 +109,23 @@ type Divide struct {
 func (s Divide) GetName() string {
 	return "Divide"
 }
+
+func (s Divide) GetManagedConditions() condition.Conditions {
+	return []condition.Condition{
+		*condition.UnknownCondition(
+			condition.InputReadyCondition,
+			condition.InitReason,
+			condition.InputReadyInitMessage,
+		),
+	}
+}
+
 func (s Divide) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	instance := r.GetInstance()
 	quotient := instance.Spec.Divident / instance.Spec.Divisor
 	remainder := instance.Spec.Divident % instance.Spec.Divisor
 	instance.Status.Quotient = &quotient
 	instance.Status.Remainder = &remainder
-	instance.Status.Conditions.MarkTrue(condition.ReadyCondition, "calculation done")
+	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, "calculation done")
 	return r.OK()
 }

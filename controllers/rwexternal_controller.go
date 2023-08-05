@@ -226,6 +226,9 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 		return nil
 	})
 
+	// TODO(gibi): ensure that reconciler Owns the Secrets it creates so it
+	// get reconciled if the output Secret is changed or deleted
+
 	if err != nil {
 		err := fmt.Errorf("failed to create or patch output secret: %w", err)
 		r.GetInstance().Status.Conditions.Set(condition.FalseCondition(

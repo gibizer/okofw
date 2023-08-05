@@ -3,6 +3,8 @@ package reconcile
 import (
 	"fmt"
 
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,8 +61,6 @@ func handleReq[T client.Object, R Req[T]](
 	} else {
 		result = reconcileNormal(r, steps)
 	}
-
-	// TODO(gibi): implement Ready condition calculation before save
 
 	saveResult := saveInstance[T, R](r)
 	// intentionally overwrite the normal steps' result only if save
@@ -156,7 +156,46 @@ func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {
 	return r.OK(), true
 }
 
+func allSubConditionIsTrue(conditions condition.Conditions) bool {
+	// It assumes that all of our conditions report success via the True status
+	for _, c := range conditions {
+		if c.Type == condition.ReadyCondition {
+			continue
+		}
+		if c.Status != corev1.ConditionTrue {
+			return false
+		}
+	}
+	return true
+}
+
+func recalculateReadyCondition(instance InstanceWithConditions) {
+	conditions := instance.GetConditions()
+	if conditions == nil {
+		return
+	}
+
+	// update the Ready condition based on the sub conditions
+	if allSubConditionIsTrue(conditions) {
+		conditions.MarkTrue(
+			condition.ReadyCondition, condition.ReadyMessage)
+	} else {
+		// something is not ready so reset the Ready condition
+		conditions.MarkUnknown(
+			condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage)
+		// and recalculate it based on the state of the rest of the conditions
+		conditions.Set(conditions.Mirror(condition.ReadyCondition))
+	}
+	instance.SetConditions(conditions)
+}
+
 func saveInstance[T client.Object, R Req[T]](r R) Result {
+
+	instanceWithConditions, ok := any(r.GetInstance()).(InstanceWithConditions)
+	if ok {
+		recalculateReadyCondition(instanceWithConditions)
+	}
+
 	patch := client.MergeFrom(r.GetInstanceSnapshot())
 
 	// We need to patch the Instance to allow metadata (finalizer) update and

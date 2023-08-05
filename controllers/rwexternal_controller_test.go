@@ -235,6 +235,8 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(rw.Status.OutputSecret).NotTo(BeNil())
 			th.GetSecret(types.NamespacedName{Namespace: namespace, Name: *rw.Status.OutputSecret})
 
+			g.Expect(rw.Finalizers).To(ContainElement("RWExternal"))
+
 		}, timeout, interval).Should(Succeed())
 
 		rw := GetRWExternal(rwName)

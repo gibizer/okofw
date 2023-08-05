@@ -168,12 +168,22 @@ func saveInstance[T client.Object, R Req[T]](r R) Result {
 	instance := r.GetInstance().DeepCopyObject().(T)
 	err := r.GetClient().Patch(r.GetCtx(), instance, patch)
 	if err != nil {
+		if k8s_errors.IsNotFound(err) {
+			r.GetLog().Info("Cannot perist instance as it is deleted")
+			return r.OK()
+		}
+
 		err := fmt.Errorf("failed to persist instance: %w", err)
 		return r.Error(err, r.GetLog())
 	}
 
 	err = r.GetClient().Status().Patch(r.GetCtx(), r.GetInstance(), patch)
 	if err != nil {
+		if k8s_errors.IsNotFound(err) {
+			r.GetLog().Info("Cannot perist instance status as it is deleted")
+			return r.OK()
+		}
+
 		err := fmt.Errorf("failed to persist instance status: %w", err)
 		return r.Error(err, r.GetLog())
 	}

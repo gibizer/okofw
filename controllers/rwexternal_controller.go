@@ -65,6 +65,10 @@ var rwExternalCleanupSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRR
 	DeleteOutputSecret{},
 }
 
+var rwExternalPostSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
+	reconcile.RecalculateReadyCondition[*v1beta1.RWExternal, *RWExternalRReq]{},
+}
+
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/finalizers,verbs=update
@@ -93,7 +97,8 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			},
 		},
 	}
-	return reconcile.NewReqHandler(rReq, rwExternalSteps, rwExternalCleanupSteps)()
+	return reconcile.NewReqHandler(
+		rReq, rwExternalSteps, rwExternalCleanupSteps, rwExternalPostSteps)()
 }
 
 // SetupWithManager sets up the controller with the Manager.

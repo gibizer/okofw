@@ -4,6 +4,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"golang.org/x/exp/maps"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -13,6 +14,7 @@ type Step[T client.Object, R Req[T]] interface {
 	GetName() string
 	GetManagedConditions() condition.Conditions
 	Do(r R, log logr.Logger) Result
+	BeforeSave(r R, log logr.Logger) Result
 
 	SetupFromSteps(steps []Step[T, R], log logr.Logger)
 }
@@ -25,6 +27,10 @@ func (s BaseStep[T, R]) GetManagedConditions() condition.Conditions {
 }
 
 func (s BaseStep[T, R]) SetupFromSteps(steps []Step[T, R], log logr.Logger) {}
+
+func (s BaseStep[T, R]) BeforeSave(r R, log logr.Logger) Result {
+	return r.OK()
+}
 
 type SaveInstance[T client.Object, R Req[T]] struct {
 	BaseStep[T, R]
@@ -68,4 +74,53 @@ func (s InitConditions[T, R]) Do(r R, log logr.Logger) Result {
 		r.GetInstance().SetConditions(c)
 	}
 	return r.OK()
+}
+
+// RecalculateReadyCondition set the status of the Ready condition based on
+// the status of the other conditions in the instance and mirrors the latest
+// error to the Ready condition if any.
+type RecalculateReadyCondition[T InstanceWithConditions, R Req[T]] struct {
+	BaseStep[T, R]
+}
+
+func (s RecalculateReadyCondition[T, R]) GetName() string {
+	return "RecalculateReadyCondition"
+}
+
+func (s RecalculateReadyCondition[T, R]) Do(r R, log logr.Logger) Result {
+	recalculateReadyCondition(r.GetInstance())
+	return r.OK()
+}
+
+func allSubConditionIsTrue(conditions condition.Conditions) bool {
+	// It assumes that all of our conditions report success via the True status
+	for _, c := range conditions {
+		if c.Type == condition.ReadyCondition {
+			continue
+		}
+		if c.Status != corev1.ConditionTrue {
+			return false
+		}
+	}
+	return true
+}
+
+func recalculateReadyCondition(instance InstanceWithConditions) {
+	conditions := instance.GetConditions()
+	if conditions == nil {
+		return
+	}
+
+	// update the Ready condition based on the sub conditions
+	if allSubConditionIsTrue(conditions) {
+		conditions.MarkTrue(
+			condition.ReadyCondition, condition.ReadyMessage)
+	} else {
+		// something is not ready so reset the Ready condition
+		conditions.MarkUnknown(
+			condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage)
+		// and recalculate it based on the state of the rest of the conditions
+		conditions.Set(conditions.Mirror(condition.ReadyCondition))
+	}
+	instance.SetConditions(conditions)
 }

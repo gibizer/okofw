@@ -3,8 +3,6 @@ package reconcile
 import (
 	"fmt"
 
-	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
-	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,25 +14,32 @@ type Handler func() (ctrl.Result, error)
 
 // NewReqHandler builds up a function that can handle the current reconcile
 // request for CRD type T with reconcile request type R
+//   - steps are normal reconciliation steps run in sequence until the first
+//     negative result
+//   - cleanups are only run if the Instance is marked for deletion. They are
+//     also run in sequence until the first negative result
+//   - postSteps are always run after normal or cleanup steps regardless of their
+//     result. They are run just before persisting the instance changes
 func NewReqHandler[T client.Object, R Req[T]](
-	r R, steps []Step[T, R], cleanups []Step[T, R],
+	r R, steps []Step[T, R], cleanups []Step[T, R], postSteps []Step[T, R],
 ) Handler {
 	//TODO(gibi): transform this to a builder
 
 	return func() (ctrl.Result, error) {
 		r.GetLog().Info("Reconciling")
-		result := handleReq[T, R](r, steps, cleanups)
+		result := handleReq[T, R](r, steps, cleanups, postSteps)
 		r.GetLog().Info("Reconciled", "result", result)
 		return result.Unwrap()
 	}
 }
 
-// handleReq implements a single Reconcile run by going throught each
+// handleReq implements a single Reconcile run by going through each
 // reconciliation steps provided.
 func handleReq[T client.Object, R Req[T]](
 	r R,
 	steps []Step[T, R],
 	cleanups []Step[T, R],
+	postSteps []Step[T, R],
 ) Result {
 
 	// NOTE(gibi): this is a bit wasteful as steps are static between reconcile
@@ -60,6 +65,17 @@ func handleReq[T client.Object, R Req[T]](
 		result = reconcileDelete(r, cleanups)
 	} else {
 		result = reconcileNormal(r, steps)
+	}
+
+	postResult := runPostSteps(postSteps, r)
+	if !postResult.IsOK() {
+		if !result.IsOK() {
+			r.GetLog().Info(
+				"Post step failure overrides existing negative result",
+				"post step result", postResult, "dropped result", result,
+			)
+		}
+		result = postResult
 	}
 
 	saveResult := saveInstance[T, R](r)
@@ -156,46 +172,17 @@ func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {
 	return r.OK(), true
 }
 
-func allSubConditionIsTrue(conditions condition.Conditions) bool {
-	// It assumes that all of our conditions report success via the True status
-	for _, c := range conditions {
-		if c.Type == condition.ReadyCondition {
-			continue
-		}
-		if c.Status != corev1.ConditionTrue {
-			return false
+func runPostSteps[T client.Object, R Req[T]](steps []Step[T, R], r R) Result {
+	for _, step := range steps {
+		result := runStep(step, r)
+		if !result.IsOK() {
+			return result
 		}
 	}
-	return true
-}
-
-func recalculateReadyCondition(instance InstanceWithConditions) {
-	conditions := instance.GetConditions()
-	if conditions == nil {
-		return
-	}
-
-	// update the Ready condition based on the sub conditions
-	if allSubConditionIsTrue(conditions) {
-		conditions.MarkTrue(
-			condition.ReadyCondition, condition.ReadyMessage)
-	} else {
-		// something is not ready so reset the Ready condition
-		conditions.MarkUnknown(
-			condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage)
-		// and recalculate it based on the state of the rest of the conditions
-		conditions.Set(conditions.Mirror(condition.ReadyCondition))
-	}
-	instance.SetConditions(conditions)
+	return r.OK()
 }
 
 func saveInstance[T client.Object, R Req[T]](r R) Result {
-
-	instanceWithConditions, ok := any(r.GetInstance()).(InstanceWithConditions)
-	if ok {
-		recalculateReadyCondition(instanceWithConditions)
-	}
-
 	patch := client.MergeFrom(r.GetInstanceSnapshot())
 
 	// We need to patch the Instance to allow metadata (finalizer) update and

@@ -64,7 +64,13 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		Divide{},
 	}
 
-	return reconcile.NewReqHandler(rReq, steps, []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{})()
+	postSteps := []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{
+		reconcile.RecalculateReadyCondition[*v1beta1.Simple, *SimpleRReq]{},
+	}
+
+	return reconcile.NewReqHandler(
+		rReq, steps, []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{}, postSteps,
+	)()
 }
 
 // SetupWithManager sets up the controller with the Manager.

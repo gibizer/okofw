@@ -55,20 +55,6 @@ type RWExternalRReq struct {
 	OutputSecret *corev1.Secret
 }
 
-var rwExternalSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
-	&reconcile.InitConditions[*v1beta1.RWExternal, *RWExternalRReq]{},
-	EnsureInput{},
-	DivideAndStore{},
-}
-
-var rwExternalCleanupSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
-	DeleteOutputSecret{},
-}
-
-var rwExternalPostSteps = []reconcile.Step[*v1beta1.RWExternal, *RWExternalRReq]{
-	reconcile.RecalculateReadyCondition[*v1beta1.RWExternal, *RWExternalRReq]{},
-}
-
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=okofw-example.openstack.org,resources=rwexternals/finalizers,verbs=update
@@ -97,8 +83,19 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			},
 		},
 	}
-	return reconcile.NewReqHandler(
-		rReq, rwExternalSteps, rwExternalCleanupSteps, rwExternalPostSteps)()
+	return reconcile.NewReqHandler[*v1beta1.RWExternal, *RWExternalRReq]().
+		WithSteps(
+			&reconcile.InitConditions[*v1beta1.RWExternal, *RWExternalRReq]{},
+			EnsureInput{},
+			DivideAndStore{},
+		).
+		WithPostSteps(
+			reconcile.RecalculateReadyCondition[*v1beta1.RWExternal, *RWExternalRReq]{},
+		).
+		WithCleanups(
+			DeleteOutputSecret{},
+		).
+		Handle(rReq)
 }
 
 // SetupWithManager sets up the controller with the Manager.

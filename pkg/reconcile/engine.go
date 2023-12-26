@@ -12,25 +12,69 @@ import (
 
 type Handler func() (ctrl.Result, error)
 
-// NewReqHandler builds up a function that can handle the current reconcile
-// request for CRD type T with reconcile request type R
-//   - steps are normal reconciliation steps run in sequence until the first
-//     negative result
-//   - cleanups are only run if the Instance is marked for deletion. They are
-//     also run in sequence until the first negative result
-//   - postSteps are always run after normal or cleanup steps regardless of their
-//     result. They are run just before persisting the instance changes
-func NewReqHandler[T client.Object, R Req[T]](
-	r R, steps []Step[T, R], cleanups []Step[T, R], postSteps []Step[T, R],
-) Handler {
-	//TODO(gibi): transform this to a builder
+// ReqHandlerBuilder helps building a ReqHandler.
+// It is not intended for direct use. Use NewReqHandler() instead.
+type ReqHandlerBuilder[T client.Object, R Req[T]] struct {
+	steps     []Step[T, R]
+	cleanups  []Step[T, R]
+	postSteps []Step[T, R]
+}
 
-	return func() (ctrl.Result, error) {
-		r.GetLog().Info("Reconciling")
-		result := handleReq[T, R](r, steps, cleanups, postSteps)
-		r.GetLog().Info("Reconciled", "result", result)
-		return result.Unwrap()
-	}
+// NewReqHandler builds up a function that can handle the current reconcile
+// request for CRD type T with reconcile request type R. It can be configured
+// with the functions on the returned builder to add reconciliation steps.
+// There are 3 types of steps
+//   - normal reconciliation steps run in sequence until the first
+//     negative result
+//   - cleanups that are only run if the Instance is marked for deletion. They
+//     are also run in sequence until the first negative result
+//   - postSteps that are always run after normal or cleanup steps regardless
+//     of their result. They are run just before persisting the instance
+//     changes
+//
+// E.g. A Reconcile() function for CRD T and request R can be defined as:
+//
+//		return reconcile.NewReqHandler[T, R]().
+//			WithSteps(
+//	       // normal steps
+//			).
+//			WithPostSteps(
+//	       // post steps
+//			).
+//			WithCleanups(
+//	       // cleanup steps
+//			).
+//			Handle(rReq)
+func NewReqHandler[T client.Object, R Req[T]]() *ReqHandlerBuilder[T, R] {
+	return &ReqHandlerBuilder[T, R]{}
+}
+
+// WithSteps adds steps to handle the reconciliation of the instance T
+func (builder *ReqHandlerBuilder[T, R]) WithSteps(steps ...Step[T, R]) *ReqHandlerBuilder[T, R] {
+	builder.steps = append(builder.steps, steps...)
+	return builder
+}
+
+// WithCleanups adds cleanup steps to handle the deletion of the instance T
+func (builder *ReqHandlerBuilder[T, R]) WithCleanups(steps ...Step[T, R]) *ReqHandlerBuilder[T, R] {
+	builder.cleanups = append(builder.cleanups, steps...)
+	return builder
+}
+
+// WithPostSteps add steps that always run at the end of reconciliation just
+// before persisting the instance T
+func (builder *ReqHandlerBuilder[T, R]) WithPostSteps(steps ...Step[T, R]) *ReqHandlerBuilder[T, R] {
+	builder.postSteps = append(builder.postSteps, steps...)
+	return builder
+}
+
+// Handle builds the request handle for the request and executes defined steps
+// to reconcile the request
+func (builder *ReqHandlerBuilder[T, R]) Handle(request R) (ctrl.Result, error) {
+	request.GetLog().Info("Reconciling")
+	result := handleReq[T, R](request, builder.steps, builder.cleanups, builder.postSteps)
+	request.GetLog().Info("Reconciled", "result", result)
+	return result.Unwrap()
 }
 
 // handleReq implements a single Reconcile run by going through each
@@ -213,10 +257,3 @@ func saveInstance[T client.Object, R Req[T]](r R) Result {
 	}
 	return r.OK()
 }
-
-// func SetupFromSteps[T client.Object, R Req[T]](
-// 	steps []Step[T, R], builder *builder.Builder,
-// ) *builder.Builder {
-
-// 	return builder
-// }

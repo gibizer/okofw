@@ -58,19 +58,19 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			Instance: &v1beta1.Simple{},
 		},
 	}
-	steps := []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{
-		&reconcile.InitConditions[*v1beta1.Simple, *SimpleRReq]{},
-		EnsureNonZeroDivisor{},
-		Divide{},
-	}
 
-	postSteps := []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{
-		reconcile.RecalculateReadyCondition[*v1beta1.Simple, *SimpleRReq]{},
-	}
-
-	return reconcile.NewReqHandler(
-		rReq, steps, []reconcile.Step[*v1beta1.Simple, *SimpleRReq]{}, postSteps,
-	)()
+	return reconcile.NewReqHandler[*v1beta1.Simple, *SimpleRReq]().
+		WithSteps(
+			// TODO(gibi): check why InitCondition needs an extra pointer
+			// but RecalculateReadyCondition does not.
+			&reconcile.InitConditions[*v1beta1.Simple, *SimpleRReq]{},
+			EnsureNonZeroDivisor{},
+			Divide{},
+		).
+		WithPostSteps(
+			reconcile.RecalculateReadyCondition[*v1beta1.Simple, *SimpleRReq]{},
+		).
+		Handle(rReq)
 }
 
 // SetupWithManager sets up the controller with the Manager.

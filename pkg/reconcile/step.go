@@ -11,13 +11,22 @@ import (
 // Step defines a single logical step during the reconciliation of the T CRD
 // type with the R reconcile request type
 type Step[T client.Object, R Req[T]] interface {
+	// GetName returns the name of the step
 	GetName() string
+	// GetManagedConditions return a list of condition the step might update
 	GetManagedConditions() condition.Conditions
+	// Do actual reconciliation step on the request.
+	// The passed in logger is already set up to have the step name as a
+	// context.
 	Do(r R, log logr.Logger) Result
-
+	// SetupFromStep allow late initialization of the step based on all the
+	// other steps added to the RequestHandler.
 	SetupFromSteps(steps []Step[T, R], log logr.Logger)
 }
 
+// BaseStep is an empty struct that gives default implementation for some of
+// the not mandatory Step functions like GetManagedConditions and
+// SetupFromSteps.
 type BaseStep[T client.Object, R Req[T]] struct {
 }
 

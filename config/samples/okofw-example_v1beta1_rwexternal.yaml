@@ -3,4 +3,3 @@ kind: RWExternal
 metadata:
   name: rwexternal-sample
 spec:
-  # TODO(user): Add fields here

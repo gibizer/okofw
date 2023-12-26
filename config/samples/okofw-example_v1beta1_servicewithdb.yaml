@@ -3,4 +3,3 @@ kind: ServiceWithDB
 metadata:
   name: servicewithdb-sample
 spec:
-  # TODO(user): Add fields here

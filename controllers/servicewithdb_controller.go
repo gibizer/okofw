@@ -23,7 +23,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	testv1beta1 "github.com/gibizer/okofw/api/v1beta1"
+	"github.com/gibizer/okofw/api/v1beta1"
 )
 
 // ServiceWithDBReconciler reconciles a ServiceWithDB object
@@ -46,6 +46,6 @@ func (r *ServiceWithDBReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceWithDBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&testv1beta1.ServiceWithDB{}).
+		For(&v1beta1.ServiceWithDB{}).
 		Complete(r)
 }

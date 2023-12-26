@@ -61,8 +61,6 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	return reconcile.NewReqHandler[*v1beta1.Simple, *SimpleRReq]().
 		WithSteps(
-			// TODO(gibi): check why InitCondition needs an extra pointer
-			// but RecalculateReadyCondition does not.
 			&reconcile.InitConditions[*v1beta1.Simple, *SimpleRReq]{},
 			EnsureNonZeroDivisor{},
 			Divide{},

@@ -27,14 +27,6 @@ func (s BaseStep[T, R]) GetManagedConditions() condition.Conditions {
 
 func (s BaseStep[T, R]) SetupFromSteps(steps []Step[T, R], log logr.Logger) {}
 
-type SaveInstance[T client.Object, R Req[T]] struct {
-	BaseStep[T, R]
-}
-
-func (s SaveInstance[T, R]) GetName() string {
-	return "PersistInstance"
-}
-
 // InitConditions is a generic step that automatically initialize the
 // conditions list of the instance Status.
 // It collects the conditions managed by other steps to make it so.

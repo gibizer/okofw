@@ -102,7 +102,7 @@ var _ = Describe("RWExternal controller", func() {
 			g.Expect(inputCondition.Status).To(Equal(corev1.ConditionFalse))
 			g.Expect(inputCondition.Message).To(
 				ContainSubstring(
-					"Input data error occurred field 'divident' not found " +
+					"Input data error occurred field 'dividend' not found " +
 						"in secret/input"))
 		}, timeout, interval).Should(Succeed())
 	})
@@ -110,7 +110,7 @@ var _ = Describe("RWExternal controller", func() {
 	It("Reports if input field is wrongly formatted", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{
-			"divident": []byte("10"),
+			"dividend": []byte("10"),
 			"divisor":  []byte("not-an-int"),
 		})
 		DeferCleanup(DeleteInstance, secretName)
@@ -146,7 +146,7 @@ var _ = Describe("RWExternal controller", func() {
 
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{
-			"divident": []byte("10"),
+			"dividend": []byte("10"),
 			"divisor":  []byte("5"),
 		})
 		DeferCleanup(DeleteInstance, secretName)
@@ -163,7 +163,7 @@ var _ = Describe("RWExternal controller", func() {
 	It("Reports division by zero", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{
-			"divident": []byte("10"),
+			"dividend": []byte("10"),
 			"divisor":  []byte("0"),
 		})
 		DeferCleanup(DeleteInstance, secretName)
@@ -189,7 +189,7 @@ var _ = Describe("RWExternal controller", func() {
 	It("Stores the result in an output Secret", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{
-			"divident": []byte("10"),
+			"dividend": []byte("10"),
 			"divisor":  []byte("5"),
 		})
 		DeferCleanup(DeleteInstance, secretName)
@@ -222,7 +222,7 @@ var _ = Describe("RWExternal controller", func() {
 	It("Deletes the output secret when RWExternal is deleted", func() {
 		secretName := types.NamespacedName{Namespace: namespace, Name: "input"}
 		th.CreateSecret(secretName, map[string][]byte{
-			"divident": []byte("10"),
+			"dividend": []byte("10"),
 			"divisor":  []byte("5"),
 		})
 		DeferCleanup(DeleteInstance, secretName)

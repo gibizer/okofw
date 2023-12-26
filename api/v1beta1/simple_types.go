@@ -27,8 +27,8 @@ import (
 // SimpleSpec defines the desired state of Simple
 type SimpleSpec struct {
 	// +kubebuilder:validation:Required
-	// Divident
-	Divident int `json:"divident"`
+	// Dividend
+	Dividend int `json:"dividend"`
 
 	// +kubebuilder:validation:Required
 	// Divisor

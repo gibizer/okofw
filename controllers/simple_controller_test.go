@@ -51,7 +51,7 @@ func ExpectSimpleStatusReady(simpleName types.NamespacedName) {
 
 }
 
-func ExpectSimpleStatusDivisonByZero(simpleName types.NamespacedName) {
+func ExpectSimpleStatusDivisionByZero(simpleName types.NamespacedName) {
 	Eventually(func(g Gomega) {
 		simple := GetSimple(simpleName)
 		g.Expect(simple.Status.Conditions).NotTo(BeNil())
@@ -73,7 +73,7 @@ var _ = Describe("Simple controller", func() {
 	})
 
 	It("Divides", func() {
-		simpleName := CreateSimple(namespace, v1beta1.SimpleSpec{Divident: 10, Divisor: 5})
+		simpleName := CreateSimple(namespace, v1beta1.SimpleSpec{Dividend: 10, Divisor: 5})
 		DeferCleanup(DeleteInstance, simpleName)
 
 		ExpectSimpleStatusReady(simpleName)
@@ -82,10 +82,10 @@ var _ = Describe("Simple controller", func() {
 		Expect(*simple.Status.Quotient).To(Equal(2))
 		Expect(*simple.Status.Remainder).To(Equal(0))
 	})
-	It("Failes to divide with zero", func() {
-		simpleName := CreateSimple(namespace, v1beta1.SimpleSpec{Divident: 10, Divisor: 0})
+	It("Fails to divide with zero", func() {
+		simpleName := CreateSimple(namespace, v1beta1.SimpleSpec{Dividend: 10, Divisor: 0})
 		DeferCleanup(DeleteInstance, simpleName)
 
-		ExpectSimpleStatusDivisonByZero(simpleName)
+		ExpectSimpleStatusDivisionByZero(simpleName)
 	})
 })

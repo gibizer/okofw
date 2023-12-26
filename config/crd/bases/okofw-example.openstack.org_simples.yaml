@@ -35,14 +35,14 @@ spec:
           spec:
             description: SimpleSpec defines the desired state of Simple
             properties:
-              divident:
-                description: Divident
+              dividend:
+                description: Dividend
                 type: integer
               divisor:
                 description: Divisor
                 type: integer
             required:
-            - divident
+            - dividend
             - divisor
             type: object
           status:

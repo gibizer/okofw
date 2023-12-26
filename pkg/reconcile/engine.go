@@ -88,7 +88,7 @@ func handleReq[T client.Object, R Req[T]](
 	return result
 }
 
-// lateStepSetup do late initalization of all steps based on every requested
+// lateStepSetup do late initialization of all steps based on every requested
 // step
 func lateStepSetup[T client.Object, R Req[T]](steps []Step[T, R], r R) {
 	for _, step := range steps {
@@ -108,12 +108,12 @@ func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
 }
 
 func reconcileNormal[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
-	// before we change anything esure that we have our own finalizer set so
+	// before we change anything ensure that we have our own finalizer set so
 	// we can catch Instance delete and do a proper cleanup
 	updated := controllerutil.AddFinalizer(r.GetInstance(), r.GetFinalizer())
 	if updated {
 		r.GetLog().Info("Added finalizer to ourselves")
-		// we intentionally force a requeue imediately here to persist the
+		// we intentionally force a requeue immediately here to persist the
 		// Instance with the finalizer. We need to have our own
 		// finalizer persisted before we try to create any external resources
 		return r.RequeueAfter(
@@ -144,7 +144,7 @@ func reconcileDelete[T client.Object, R Req[T]](r R, cleanups []Step[T, R]) Resu
 		}
 	}
 
-	// all cleaups are done successfully so we can remove the finalizer
+	// all cleanups are done successfully so we can remove the finalizer
 	// from ourselves
 	updated := controllerutil.RemoveFinalizer(r.GetInstance(), r.GetFinalizer())
 	if updated {
@@ -193,7 +193,7 @@ func saveInstance[T client.Object, R Req[T]](r R) Result {
 	err := r.GetClient().Patch(r.GetCtx(), instance, patch)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			r.GetLog().Info("Cannot perist instance as it is deleted")
+			r.GetLog().Info("Cannot persist instance as it is deleted")
 			return r.OK()
 		}
 
@@ -204,7 +204,7 @@ func saveInstance[T client.Object, R Req[T]](r R) Result {
 	err = r.GetClient().Status().Patch(r.GetCtx(), r.GetInstance(), patch)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			r.GetLog().Info("Cannot perist instance status as it is deleted")
+			r.GetLog().Info("Cannot persist instance status as it is deleted")
 			return r.OK()
 		}
 

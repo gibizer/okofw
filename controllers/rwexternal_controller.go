@@ -50,7 +50,7 @@ type RWExternalReconciler struct {
 
 type RWExternalRReq struct {
 	reconcile.Req[*v1beta1.RWExternal]
-	Divident     *int
+	Dividend     *int
 	Divisor      *int
 	OutputSecret *corev1.Secret
 }
@@ -88,7 +88,7 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Instance:       &v1beta1.RWExternal{},
 			RequeueTimeout: time.Duration(1) * time.Second,
 		},
-		Divident: nil,
+		Dividend: nil,
 		Divisor:  nil,
 		OutputSecret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -153,7 +153,7 @@ func (s EnsureInput) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
 	}
 
 	expectedFields := []string{
-		"divident",
+		"dividend",
 		"divisor",
 	}
 	for _, field := range expectedFields {
@@ -222,12 +222,12 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 
 	_, err := controllerutil.CreateOrPatch(r.GetCtx(), r.GetClient(), r.OutputSecret, func() error {
 		r.OutputSecret.Data = map[string][]byte{
-			"quotient":  []byte(fmt.Sprint(*r.Divident / *r.Divisor)),
-			"remainder": []byte(fmt.Sprint(*r.Divident % *r.Divisor)),
+			"quotient":  []byte(fmt.Sprint(*r.Dividend / *r.Divisor)),
+			"remainder": []byte(fmt.Sprint(*r.Dividend % *r.Divisor)),
 		}
 		// NOTE(gibi): intentionally not setting owner ref to create the need
 		// for an explicit delete by the operator so we can use this example
-		// to exercise the cleanup codepath in this controller
+		// to exercise the cleanup code path in this controller
 		return nil
 	})
 

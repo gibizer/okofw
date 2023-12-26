@@ -128,8 +128,8 @@ func (s Divide) GetManagedConditions() condition.Conditions {
 
 func (s Divide) Do(r *SimpleRReq, log logr.Logger) reconcile.Result {
 	instance := r.GetInstance()
-	quotient := instance.Spec.Divident / instance.Spec.Divisor
-	remainder := instance.Spec.Divident % instance.Spec.Divisor
+	quotient := instance.Spec.Dividend / instance.Spec.Divisor
+	remainder := instance.Spec.Dividend % instance.Spec.Divisor
 	instance.Status.Quotient = &quotient
 	instance.Status.Remainder = &remainder
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, "calculation done")

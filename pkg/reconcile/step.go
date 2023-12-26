@@ -14,7 +14,6 @@ type Step[T client.Object, R Req[T]] interface {
 	GetName() string
 	GetManagedConditions() condition.Conditions
 	Do(r R, log logr.Logger) Result
-	BeforeSave(r R, log logr.Logger) Result
 
 	SetupFromSteps(steps []Step[T, R], log logr.Logger)
 }
@@ -27,10 +26,6 @@ func (s BaseStep[T, R]) GetManagedConditions() condition.Conditions {
 }
 
 func (s BaseStep[T, R]) SetupFromSteps(steps []Step[T, R], log logr.Logger) {}
-
-func (s BaseStep[T, R]) BeforeSave(r R, log logr.Logger) Result {
-	return r.OK()
-}
 
 type SaveInstance[T client.Object, R Req[T]] struct {
 	BaseStep[T, R]

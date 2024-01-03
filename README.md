@@ -118,3 +118,11 @@ casting) to access all the CR specific fields.
 
 * `InitConditions`
 * `RecalculateReadyCondition`
+
+### Examples
+* `v1beta1.Simple` + `simple_controller`: Shows the basic Reconcile setup
+   without any external dependencies but with Condition handling.
+   The reconciler only reads its Spec and writes its Status.
+* `v1beta1.RWExternal` + `rwexternal_controller`: The reconciler reads an
+   external input (a Secret) and create external output (another Secret) with
+   additional cleanup logic for the output during CR deletion.

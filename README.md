@@ -119,7 +119,8 @@ casting) to access all the CR specific fields.
 ### Available generic steps
 
 * `Conditions`: This step ensure that the every condition is initialized
-  and Ready condition is always recalculated before the CR is saved.
+  and the Ready condition is always recalculated before the CR is saved. It
+  requires that the CRD type implements the `InstanceWithConditions` interface
 
 ### Examples
 * `v1beta1.Simple` + `simple_controller`: Shows the basic Reconcile setup

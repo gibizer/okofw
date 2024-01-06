@@ -18,7 +18,8 @@ type InstanceWithConditions interface {
 
 // Conditions is a generic step that automatically initialize the
 // conditions list of the instance Status and ensures that Ready condition
-// is updated before the CR is saved.
+// is updated before the CR is saved. It requires that the CRD type T
+// implements the InstanceWithConditions interface.
 // It collects the conditions managed by other steps to make it so.
 type Conditions[T InstanceWithConditions, R reconcile.Req[T]] struct {
 	reconcile.BaseStep[T, R]

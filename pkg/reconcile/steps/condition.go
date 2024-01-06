@@ -1,6 +1,8 @@
 package steps
 
 import (
+	"fmt"
+
 	"github.com/gibizer/okofw/pkg/reconcile"
 	"github.com/go-logr/logr"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
@@ -42,9 +44,22 @@ func (s *Conditions[T, R]) Setup(
 	// collect all the conditions other steps are managing but ignore
 	// duplicates
 	conditions := map[condition.Type]condition.Condition{}
+	// look for ourselves in the step list. If there are other
+	// ConditionManagers in the list before us that is a programmer error.
+	foundOurselves := false
 	for _, step := range steps {
+		if step == s {
+			foundOurselves = true
+		}
 		condMgr, ok := step.(ConditionManager)
 		if ok {
+			if !foundOurselves {
+				panic(
+					fmt.Sprintf(
+						"Step order error. Cannot add step %s which is a "+
+							"ConditionManager before step steps.Conditions",
+						step.GetName()))
+			}
 			for _, cond := range condMgr.GetManagedConditions() {
 				conditions[cond.Type] = cond
 			}

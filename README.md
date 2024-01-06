@@ -120,7 +120,12 @@ casting) to access all the CR specific fields.
 
 * `Conditions`: This step ensure that the every condition is initialized
   and the Ready condition is always recalculated before the CR is saved. It
-  requires that the CRD type implements the `InstanceWithConditions` interface
+  requires that the CRD type implements the `InstanceWithConditions` interface.
+  If another Step wants to manage a condition then that Step needs to implement
+  the `ConditionManager` interface to declare which conditions it manipulates.
+  Then the `Conditions` step will know what conditions needs to be initialized.
+  Note that `Conditions` step should be added to the `Handler` before any other
+  steps manipulating conditions.
 
 ### Examples
 * `v1beta1.Simple` + `simple_controller`: Shows the basic Reconcile setup

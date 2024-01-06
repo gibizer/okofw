@@ -30,11 +30,12 @@ A single piece of work to be done to reconcile a CR instance run by the
 Reconcile request handler. It has access to the CR instance state, and the
 Reconcile request and it can manipulate both.
 
-There are different types of steps:
-* Normal step
-* Cleanup step to handle CR deletion
-* Post step to implement tasks that always needs to be run even if a previous
-  step failed.
+There are different phases of a step execution implemented by different
+functions:
+* `Do()`: Normal reconciliation
+* `Cleanup()`: implement any cleanup action needed during CR deletion
+* `Post()`: implement tasks that always needs to be run right before the CR is
+  persisted even if a previous step failed.
 
 
 ## Reconcile flow
@@ -50,18 +51,19 @@ There are different types of steps:
  ╱                          ╲    ┌─────────────────────┐
 ╱ DeletionTimestamp.isZero() ╲___│Ensure self finalizer│
 ╲                            ╱yes└──────────┬──────────┘
- ╲__________________________╱      ┌────────▽───────┐
-              │no                  │Run normal steps│
-     ┌────────▽────────┐           └────────┬───────┘
-     │Run cleanup steps│                    │
-     └────────┬────────┘                    │
+ ╲__________________________╱     ┌─────────▽─────────┐
+              │no                 │For each Step: Do()│
+ ┌────────────▽───────────┐       └─────────┬─────────┘
+ │For each Step in reverse│                 │
+ │order: Cleanup()        │                 │
+ └────────────┬───────────┘                 │
    ┌──────────▽──────────┐                  │
    │Remove self finalizer│                  │
    └──────────┬──────────┘                  │
               └───────┬─────────────────────┘
-              ┌───────▽──────┐
-              │Run post steps│
-              └───────┬──────┘
+           ┌──────────▽──────────┐
+           │For each step: Post()│
+           └──────────┬──────────┘
                   ┌───▽───┐
                   │Save CR│
                   └───────┘
@@ -74,15 +76,15 @@ Drawn with https://arthursonzogni.com/Diagon/#Flowchart
 if ("DeletionTimestamp.isZero()") {
 
   "Ensure self finalizer"
-  "Run normal steps"
+  "For each Step: Do()"
 
 }
 else {
-  "Run cleanup steps"
+  "For each Step in reverse order: Cleanup()"
   "Remove self finalizer"
 }
 
-"Run post steps"
+"For each step: Post()"
 "Save CR"
 
 -->
@@ -101,7 +103,7 @@ The `Handler` takes an `Req` instance so it is also generic with type parameter
 `T` and `Req[T]`.
 
 This allows to create both generic and specific Steps. For example
-`InitConditions` is a generic step where the `T` CR type is only restricted
+`Conditions` is a generic step where the `T` CR type is only restricted
 to support `GetConditions` and `SetCondition` calls.
 An example for a type specific step is `EnsureNonZeroDivisor` from the
 `simple_controller` where `T` is replaced with the specific CR type
@@ -116,8 +118,8 @@ casting) to access all the CR specific fields.
 
 ### Available generic steps
 
-* `InitConditions`
-* `RecalculateReadyCondition`
+* `Conditions`: This step ensure that the every condition is initialized
+  and Ready condition is always recalculated before the CR is saved.
 
 ### Examples
 * `v1beta1.Simple` + `simple_controller`: Shows the basic Reconcile setup

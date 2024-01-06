@@ -61,12 +61,9 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	return reconcile.NewReqHandler[*v1beta1.Simple, *SimpleRReq]().
 		WithSteps(
-			&reconcile.InitConditions[*v1beta1.Simple, *SimpleRReq]{},
+			&reconcile.Conditions[*v1beta1.Simple, *SimpleRReq]{},
 			EnsureNonZeroDivisor{},
 			Divide{},
-		).
-		WithPostSteps(
-			reconcile.RecalculateReadyCondition[*v1beta1.Simple, *SimpleRReq]{},
 		).
 		Handle(rReq)
 }

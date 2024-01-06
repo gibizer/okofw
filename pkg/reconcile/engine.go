@@ -3,6 +3,7 @@ package reconcile
 import (
 	"fmt"
 
+	"github.com/go-logr/logr"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -10,41 +11,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-type Handler func() (ctrl.Result, error)
-
 // ReqHandlerBuilder helps building a ReqHandler.
 // It is not intended for direct use. Use NewReqHandler() instead.
 type ReqHandlerBuilder[T client.Object, R Req[T]] struct {
-	steps     []Step[T, R]
-	cleanups  []Step[T, R]
-	postSteps []Step[T, R]
+	steps []Step[T, R]
 }
 
 // NewReqHandler builds up a function that can handle the current reconcile
 // request for CRD type T with reconcile request type R. It can be configured
 // with the functions on the returned builder to add reconciliation steps.
-// There are 3 types of steps
-//   - normal reconciliation steps run in sequence until the first
-//     negative result
-//   - cleanups that are only run if the Instance is marked for deletion. They
-//     are also run in sequence until the first negative result
-//   - postSteps that are always run after normal or cleanup steps regardless
-//     of their result. They are run just before persisting the instance
-//     changes
 //
-// E.g. A Reconcile() function for CRD T and request R can be defined as:
-//
-//		return reconcile.NewReqHandler[T, R]().
-//			WithSteps(
-//	       // normal steps
-//			).
-//			WithPostSteps(
-//	       // post steps
-//			).
-//			WithCleanups(
-//	       // cleanup steps
-//			).
-//			Handle(rReq)
+// Step.Do() is called in the order of the Steps added to the handler when
+// CR is reconciled normally.
+// Step.Cleanup() called in the reverse order of the Steps added when the CR is
+// being deleted.
+// Step.Post() is called in order of the Steps added after all the Step's Do or
+// Cleanup function is executed, or one of those functions returned error or
+// requested requeue.
 func NewReqHandler[T client.Object, R Req[T]]() *ReqHandlerBuilder[T, R] {
 	return &ReqHandlerBuilder[T, R]{}
 }
@@ -55,36 +38,18 @@ func (builder *ReqHandlerBuilder[T, R]) WithSteps(steps ...Step[T, R]) *ReqHandl
 	return builder
 }
 
-// WithCleanups adds cleanup steps to handle the deletion of the instance T
-func (builder *ReqHandlerBuilder[T, R]) WithCleanups(steps ...Step[T, R]) *ReqHandlerBuilder[T, R] {
-	builder.cleanups = append(builder.cleanups, steps...)
-	return builder
-}
-
-// WithPostSteps add steps that always run at the end of reconciliation just
-// before persisting the instance T
-func (builder *ReqHandlerBuilder[T, R]) WithPostSteps(steps ...Step[T, R]) *ReqHandlerBuilder[T, R] {
-	builder.postSteps = append(builder.postSteps, steps...)
-	return builder
-}
-
-// Handle builds the request handle for the request and executes defined steps
+// Handle builds the request handler for the request and executes defined steps
 // to reconcile the request
 func (builder *ReqHandlerBuilder[T, R]) Handle(request R) (ctrl.Result, error) {
 	request.GetLog().Info("Reconciling")
-	result := handleReq[T, R](request, builder.steps, builder.cleanups, builder.postSteps)
+	result := handleReq[T, R](request, builder.steps)
 	request.GetLog().Info("Reconciled", "result", result)
 	return result.Unwrap()
 }
 
 // handleReq implements a single Reconcile run by going through each
 // reconciliation steps provided.
-func handleReq[T client.Object, R Req[T]](
-	r R,
-	steps []Step[T, R],
-	cleanups []Step[T, R],
-	postSteps []Step[T, R],
-) Result {
+func handleReq[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 
 	// NOTE(gibi): this is a bit wasteful as steps are static between reconcile
 	// runs so this setup could be done only once at manager setup
@@ -106,12 +71,12 @@ func handleReq[T client.Object, R Req[T]](
 
 	var result Result
 	if !r.GetInstance().GetDeletionTimestamp().IsZero() {
-		result = reconcileDelete(r, cleanups)
+		result = reconcileDelete(r, steps)
 	} else {
 		result = reconcileNormal(r, steps)
 	}
 
-	postResult := runPostSteps(postSteps, r)
+	postResult := reconcilePost(r, steps)
 	if !postResult.IsOK() {
 		if !result.IsOK() {
 			r.GetLog().Info(
@@ -136,13 +101,13 @@ func handleReq[T client.Object, R Req[T]](
 // step
 func lateStepSetup[T client.Object, R Req[T]](steps []Step[T, R], r R) {
 	for _, step := range steps {
-		step.SetupFromSteps(steps, r.GetLog())
+		step.Setup(steps, r.GetLog())
 	}
 }
 
-func runStep[T client.Object, R Req[T]](step Step[T, R], r R) Result {
-	stepLog := r.GetLog().WithName(step.GetName())
-	result := step.Do(r, stepLog)
+func runStep[T client.Object, R Req[T]](name string, stepF func(r R, log logr.Logger) Result, r R, log logr.Logger) Result {
+	stepLog := log.WithName(name)
+	result := stepF(r, stepLog)
 	if result.IsError() {
 		stepLog.Error(result.Err(), result.String())
 	} else {
@@ -167,7 +132,7 @@ func reconcileNormal[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result 
 	}
 
 	for _, step := range steps {
-		result := runStep(step, r)
+		result := runStep[T, R](step.GetName(), step.Do, r, r.GetLog())
 		if !result.IsOK() {
 			// stop progressing as something failed
 			return result
@@ -176,11 +141,14 @@ func reconcileNormal[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result 
 	return r.OK()
 }
 
-func reconcileDelete[T client.Object, R Req[T]](r R, cleanups []Step[T, R]) Result {
+func reconcileDelete[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
 	r.GetLog().Info("Deleting instance")
+	l := r.GetLog().WithName("Cleanup")
 
-	for _, step := range cleanups {
-		result := runStep(step, r)
+	// Do the cleanup calls in reverse order so the last created resource
+	// cleaned up first
+	for _, step := range reverse(steps) {
+		result := runStep[T, R](step.GetName(), step.Cleanup, r, l)
 		if !result.IsOK() {
 			// skip the rest of the cleanups it will be done in a later
 			// reconcile
@@ -196,6 +164,15 @@ func reconcileDelete[T client.Object, R Req[T]](r R, cleanups []Step[T, R]) Resu
 	}
 
 	return r.OK()
+}
+
+// Reverse a slice. Replace this with slices.Reverse() from golang 1.21
+func reverse[S ~[]E, E any](s S) S {
+	r := []E{}
+	for i := len(s) - 1; i >= 0; i-- {
+		r = append(r, s[i])
+	}
+	return r
 }
 
 func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {
@@ -216,9 +193,14 @@ func readInstance[T client.Object, R Req[T]](r R) (result Result, found bool) {
 	return r.OK(), true
 }
 
-func runPostSteps[T client.Object, R Req[T]](steps []Step[T, R], r R) Result {
+func reconcilePost[T client.Object, R Req[T]](r R, steps []Step[T, R]) Result {
+	l := r.GetLog().WithName("Post")
+	// FIXME(gibi): This is to much log with empty function. Either we
+	// should check if the function is empty and not run / log it
+	// or only log error in optional phases.
+	// Also double check if cleanup logging happening properly
 	for _, step := range steps {
-		result := runStep(step, r)
+		result := runStep[T, R](step.GetName(), step.Post, r, l)
 		if !result.IsOK() {
 			return result
 		}

@@ -85,15 +85,9 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	return reconcile.NewReqHandler[*v1beta1.RWExternal, *RWExternalRReq]().
 		WithSteps(
-			&reconcile.InitConditions[*v1beta1.RWExternal, *RWExternalRReq]{},
+			&reconcile.Conditions[*v1beta1.RWExternal, *RWExternalRReq]{},
 			EnsureInput{},
 			DivideAndStore{},
-		).
-		WithPostSteps(
-			reconcile.RecalculateReadyCondition[*v1beta1.RWExternal, *RWExternalRReq]{},
-		).
-		WithCleanups(
-			DeleteOutputSecret{},
 		).
 		Handle(rReq)
 }
@@ -247,15 +241,7 @@ func (s DivideAndStore) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result 
 	return r.OK()
 }
 
-type DeleteOutputSecret struct {
-	reconcile.BaseStep[*v1beta1.RWExternal, *RWExternalRReq]
-}
-
-func (s DeleteOutputSecret) GetName() string {
-	return "DeleteOutputSecret"
-}
-
-func (s DeleteOutputSecret) Do(r *RWExternalRReq, log logr.Logger) reconcile.Result {
+func (s DivideAndStore) Cleanup(r *RWExternalRReq, log logr.Logger) reconcile.Result {
 	err := r.GetClient().Delete(r.GetCtx(), r.OutputSecret)
 	if k8s_errors.IsNotFound(err) {
 		return r.OK()

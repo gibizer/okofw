@@ -2,7 +2,6 @@ package reconcile
 
 import (
 	"github.com/go-logr/logr"
-	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -15,8 +14,6 @@ type Step[T client.Object, R Req[T]] interface {
 	// other steps added to the RequestHandler. It runs before any Step
 	// execution.
 	Setup(steps []Step[T, R], log logr.Logger)
-	// GetManagedConditions return a list of condition the step might update
-	GetManagedConditions() condition.Conditions
 	// Do actual reconciliation step on the request.
 	// The passed in logger is already set up to have the step name as a
 	// context.
@@ -29,7 +26,7 @@ type Step[T client.Object, R Req[T]] interface {
 	// Cleanup run and the engine moves to execute the Post calls
 	// of each Step and then saves the CR.
 	Cleanup(r R, log logr.Logger) Result
-	// PostDo is called after each step's Do or Cleanup to do late actions
+	// Post is called after each step's Do or Cleanup to do late actions
 	// just before persisting the CR and returning a result to the
 	// controller-runtime.
 	// If Post returns an error or requests a requeue then no other Step's
@@ -38,13 +35,8 @@ type Step[T client.Object, R Req[T]] interface {
 }
 
 // BaseStep is an empty struct that gives default implementation for some of
-// the not mandatory Step functions like GetManagedConditions and
-// Setup.
+// the not mandatory Step functions like Setup.
 type BaseStep[T client.Object, R Req[T]] struct {
-}
-
-func (s BaseStep[T, R]) GetManagedConditions() condition.Conditions {
-	return []condition.Condition{}
 }
 
 func (s BaseStep[T, R]) Setup(steps []Step[T, R], log logr.Logger) {}

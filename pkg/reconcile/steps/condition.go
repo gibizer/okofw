@@ -16,6 +16,11 @@ type InstanceWithConditions interface {
 	SetConditions(condition.Conditions)
 }
 
+type ConditionManager interface {
+	// GetManagedConditions return a list of condition the step might update
+	GetManagedConditions() condition.Conditions
+}
+
 // Conditions is a generic step that automatically initialize the
 // conditions list of the instance Status and ensures that Ready condition
 // is updated before the CR is saved. It requires that the CRD type T
@@ -38,8 +43,11 @@ func (s *Conditions[T, R]) Setup(
 	// duplicates
 	conditions := map[condition.Type]condition.Condition{}
 	for _, step := range steps {
-		for _, cond := range step.GetManagedConditions() {
-			conditions[cond.Type] = cond
+		condMgr, ok := step.(ConditionManager)
+		if ok {
+			for _, cond := range condMgr.GetManagedConditions() {
+				conditions[cond.Type] = cond
+			}
 		}
 	}
 	// ignore ReadyCondition as that always initialized automatically

@@ -40,6 +40,7 @@ import (
 
 	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
 	"github.com/gibizer/okofw/pkg/reconcile"
+	"github.com/gibizer/okofw/pkg/reconcile/steps"
 )
 
 // RWExternalReconciler reconciles a RWExternal object
@@ -85,7 +86,7 @@ func (r *RWExternalReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	return reconcile.NewReqHandler[*v1beta1.RWExternal, *RWExternalRReq]().
 		WithSteps(
-			&reconcile.Conditions[*v1beta1.RWExternal, *RWExternalRReq]{},
+			&steps.Conditions[*v1beta1.RWExternal, *RWExternalRReq]{},
 			EnsureInput{},
 			DivideAndStore{},
 		).

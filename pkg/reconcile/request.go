@@ -5,17 +5,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-type InstanceWithConditions interface {
-	client.Object
-
-	GetConditions() condition.Conditions
-	SetConditions(condition.Conditions)
-}
 
 type ResultGenerator interface {
 	OK() Result

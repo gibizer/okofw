@@ -27,6 +27,7 @@ import (
 
 	v1beta1 "github.com/gibizer/okofw/api/v1beta1"
 	"github.com/gibizer/okofw/pkg/reconcile"
+	"github.com/gibizer/okofw/pkg/reconcile/steps"
 	"github.com/go-logr/logr"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
@@ -61,7 +62,7 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	return reconcile.NewReqHandler[*v1beta1.Simple, *SimpleRReq]().
 		WithSteps(
-			&reconcile.Conditions[*v1beta1.Simple, *SimpleRReq]{},
+			&steps.Conditions[*v1beta1.Simple, *SimpleRReq]{},
 			EnsureNonZeroDivisor{},
 			Divide{},
 		).
